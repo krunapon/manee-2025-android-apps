@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Thai Government Brand Colors -->
+    <!-- Primary colors (Thai flag blue) -->
+    <color name="colorPrimary">#1E3A8A</color>
+    <color name="colorPrimaryVariant">#1E40AF</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+
+    <!-- Secondary colors (Thai flag red) -->
+    <color name="colorSecondary">#DC2626</color>
+    <color name="colorSecondaryVariant">#EF4444</color>
+    <color name="colorOnSecondary">#FFFFFF</color>
+
+    <!-- Surface colors -->
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorOnSurface">#1F2937</color>
+
+    <!-- Background colors -->
+    <color name="colorBackground">#F9FAFB</color>
+    <color name="colorOnBackground">#1F2937</color>
+
+    <!-- Error colors -->
+    <color name="colorError">#DC2626</color>
+    <color name="colorOnError">#FFFFFF</color>
+
+    <!-- Additional Thai Sign Language app specific colors -->
+    <color name="tsl_accent">#F59E0B</color>
+    <color name="tsl_success">#10B981</color>
+    <color name="tsl_warning">#F59E0B</color>
+    <color name="tsl_info">#3B82F6</color>
+
+    <!-- Camera overlay colors -->
+    <color name="camera_overlay">#80000000</color>
+    <color name="gesture_detected">#10B981</color>
+    <color name="gesture_analyzing">#F59E0B</color>
+
+    <!-- Common colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#1F2937</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_hint">#9CA3AF</color>
+</resources>

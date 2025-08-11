@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Dark theme colors -->
+    <style name="Base.Theme.TSLGovApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Dark theme colors -->
+        <item name="colorPrimary">#3B82F6</item>
+        <item name="colorPrimaryVariant">#2563EB</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+
+        <item name="colorSecondary">#EF4444</item>
+        <item name="colorSecondaryVariant">#F87171</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+
+        <item name="colorSurface">#1F2937</item>
+        <item name="colorOnSurface">#F9FAFB</item>
+
+        <item name="android:colorBackground">#111827</item>
+        <item name="colorOnBackground">#F9FAFB</item>
+
+        <item name="colorError">#EF4444</item>
+        <item name="colorOnError">#FFFFFF</item>
+
+        <!-- Status bar color for dark theme -->
+        <item name="android:statusBarColor">#111827</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.TSLGovApp" parent="Base.Theme.TSLGovApp" />
+</resources>
