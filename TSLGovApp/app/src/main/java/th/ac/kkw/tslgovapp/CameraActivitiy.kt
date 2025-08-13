@@ -169,7 +169,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             textToSpeech?.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
 
             // แสดงข้อความยืนยันสั้นๆ
-            Toast.makeText(this, "แปลเป็น: $result", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "แปลเป็น: $result", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -226,8 +226,8 @@ class SignLanguageAnalyzer(private val onResult: (String) -> Unit) : ImageAnalys
     override fun analyze(image: androidx.camera.core.ImageProxy) {
         val currentTime = System.currentTimeMillis()
 
-        // จำลองการตรวจจับทุก 3 วินาที
-        if (currentTime - lastTime >= 3000) {
+        // จำลองการตรวจจับทุก 5 วินาที
+        if (currentTime - lastTime >= 5000) {
             lastTime = currentTime
             val result = governmentWords[wordIndex % governmentWords.size]
             wordIndex++
