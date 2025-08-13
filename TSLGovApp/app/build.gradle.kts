@@ -12,10 +12,23 @@ android {
 
     defaultConfig {
         applicationId = "th.ac.kkw.tslgovapp"
-        minSdk = 21
+        minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        // for mediapipe
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
+        // for mediapipe
+        packaging {
+            resources {
+                excludes += "/META-INF/{AL2.0,LGPL2.1}"
+                pickFirsts += listOf("**/libc++_shared.so", "**/libjsc.so")
+            }
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -75,6 +88,14 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+
+    // MediaPipe dependencies (if installed)
+    implementation("com.google.mediapipe:solution-core:0.10.14")
+    implementation("com.google.mediapipe:hands:0.10.14")
+
+    // Required for MediaPipe
+    implementation("com.google.protobuf:protobuf-java:3.21.12")
+    implementation("com.google.guava:guava:31.1-android")
 
     // Test dependencies
     testImplementation(libs.junit)

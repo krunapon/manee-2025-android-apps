@@ -1,12 +1,6 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -16,6 +10,15 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Add MediaPipe repositories
+        maven {
+            url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
+            name = "Sonatype Snapshots"
+        }
+        maven {
+            url = uri("https://maven.google.com")
+            name = "Google Maven"
+        }
     }
 }
 
