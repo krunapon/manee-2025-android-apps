@@ -2,7 +2,10 @@ package th.ac.kkw.tslgovapp
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.widget.Button
@@ -50,13 +53,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         initViews()
         setupClickListeners()
 
-        // เริ่มต้น Text-to-Speech
+        // Initialize Text-to-Speech
         textToSpeech = TextToSpeech(this, this)
 
-        // เริ่มต้น Camera Executor
+        // Initialize Camera Executor
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // ตรวจสอบสิทธิ์กล้อง
+        // Check camera permissions
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -85,6 +88,17 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnBack.setOnClickListener {
             finish()
         }
+
+        // Add long press on preview for testing
+        previewView.setOnLongClickListener {
+            if (isDetecting) {
+                testGestureDetection()
+                Toast.makeText(this, "🧪 Test gesture triggered", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Start detection first", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -109,36 +123,55 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
-            cameraProvider = cameraProviderFuture.get()
-
-            // สร้าง Preview
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-
-            // สร้าง Image Analyzer สำหรับตรวจจับภาษามือ
-            imageAnalyzer = ImageAnalysis.Builder().build().also {
-                it.setAnalyzer(cameraExecutor, SignLanguageAnalyzer { result ->
-                    runOnUiThread {
-                        updateResult(result)
-                    }
-                })
-            }
-
-            // เลือกกล้องหน้า (เหมาะสำหรับภาษามือ)
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
             try {
-                // ยกเลิกการใช้งานที่มีอยู่ก่อน
+                cameraProvider = cameraProviderFuture.get()
+
+                // Create Preview
+                val preview = Preview.Builder()
+                    .build()
+                    .also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+
+                // Create enhanced Image Analyzer with explicit types
+                imageAnalyzer = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetRotation(previewView.display.rotation)
+                    .build()
+                    .also { analysis: ImageAnalysis ->
+                        analysis.setAnalyzer(
+                            cameraExecutor,
+                            DebugSignLanguageAnalyzer(
+                                onResult = { result: String ->
+                                    runOnUiThread {
+                                        updateResult(result)
+                                    }
+                                },
+                                onDebug = { debugInfo: String ->
+                                    runOnUiThread {
+                                        Log.d("CameraActivity", debugInfo)
+                                    }
+                                }
+                            )
+                        )
+                    }
+
+                // Use front camera (better for sign language)
+                val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+                // Unbind use cases before rebinding
                 cameraProvider?.unbindAll()
 
-                // ผูก use cases กับ lifecycle
+                // Bind use cases to camera
                 cameraProvider?.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer
                 )
 
+                Log.d(TAG, "Camera started successfully")
+
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
+                Toast.makeText(this, "Failed to start camera: ${exc.message}", Toast.LENGTH_LONG).show()
             }
 
         }, ContextCompat.getMainExecutor(this))
@@ -151,11 +184,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
             resultText.text = "กำลังตรวจจับภาษามือ..."
             largeResultText.text = "พร้อมรับภาษามือ"
+            Log.d(TAG, "🎯 Detection started")
         } else {
             btnStartStop.text = "🎯 เริ่มตรวจจับ"
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             resultText.text = "ทำภาษามือเพื่อเริ่มการแปล"
             largeResultText.text = "ยังไม่มีการตรวจจับ"
+            largeResultText.setBackgroundColor(Color.TRANSPARENT)
+            Log.d(TAG, "⏹️ Detection stopped")
         }
     }
 
@@ -165,12 +201,27 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             resultText.text = "ตรวจพบ: $result"
             largeResultText.text = result
 
-            // เล่นเสียงพูดทันที
+            // Play sound immediately
             textToSpeech?.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
 
-            // แสดงข้อความยืนยันสั้นๆ
-            Toast.makeText(this, "แปลเป็น: $result", Toast.LENGTH_SHORT).show()
+            // Visual feedback
+            largeResultText.setBackgroundColor(
+                ContextCompat.getColor(this, android.R.color.holo_green_light)
+            )
+
+            // Reset background after 1 second using Handler
+            Handler(Looper.getMainLooper()).postDelayed({
+                largeResultText.setBackgroundColor(Color.TRANSPARENT)
+            }, 1000)
+
+            Log.d(TAG, "✅ Sign detected and announced: $result")
         }
+    }
+
+    private fun testGestureDetection() {
+        val testWords = listOf("เจ็บ", "ปวด", "ช่วยด้วย")
+        val randomWord = testWords.random()
+        updateResult(randomWord)
     }
 
     private fun repeatLastSound() {
@@ -187,13 +238,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val result = textToSpeech?.setLanguage(Locale("th", "TH"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.e(TAG, "ไม่รองรับภาษาไทย")
-                // ใช้ภาษาอังกฤษแทน
+                // Use English instead
                 textToSpeech?.setLanguage(Locale.ENGLISH)
             }
 
-            // ตั้งค่าเสียงให้ชัดเจน
-            textToSpeech?.setSpeechRate(0.8f) // พูดช้าหน่อยให้ชัดเจน
-            textToSpeech?.setPitch(1.0f) // โทนเสียงปกติ
+            // Set voice settings for clarity
+            textToSpeech?.setSpeechRate(0.8f) // Speak slower for clarity
+            textToSpeech?.setPitch(1.0f) // Normal pitch
         } else {
             Log.e(TAG, "เริ่มต้น TextToSpeech ไม่สำเร็จ")
         }
@@ -204,36 +255,5 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         cameraExecutor.shutdown()
         textToSpeech?.stop()
         textToSpeech?.shutdown()
-    }
-}
-
-// คลาสจำลองสำหรับวิเคราะห์ภาษามือ - รองรับคำศัพท์ในสถานที่ราชการ
-class SignLanguageAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
-
-    // คำศัพท์ทั้ง 9 คำที่รองรับ (ตามเอกสาร)
-    private val governmentWords = listOf(
-        // โรงพยาบาล
-        "เจ็บ", "ปวด", "ช่วยด้วย",
-        // สถานีตำรวจ
-        "ของหาย", "บัตรประชาชน", "แจ้งความ",
-        // สถานีรถไฟ
-        "ตั๋วรถไฟ", "หลงทาง", "ห้องน้ำ"
-    )
-
-    private var lastTime = 0L
-    private var wordIndex = 0
-
-    override fun analyze(image: androidx.camera.core.ImageProxy) {
-        val currentTime = System.currentTimeMillis()
-
-        // จำลองการตรวจจับทุก 3 วินาที
-        if (currentTime - lastTime >= 3000) {
-            lastTime = currentTime
-            val result = governmentWords[wordIndex % governmentWords.size]
-            wordIndex++
-            onResult(result)
-        }
-
-        image.close()
     }
 }
