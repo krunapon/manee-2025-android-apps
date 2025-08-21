@@ -1,46 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Thai Government Brand Colors -->
-    <!-- Primary colors (Thai flag blue) -->
-    <color name="colorPrimary">#1E3A8A</color>
-    <color name="colorPrimaryVariant">#1E40AF</color>
-    <color name="colorOnPrimary">#FFFFFF</color>
+    <!-- Material Design Theme Colors (Required by Android) -->
+    <color name="colorPrimary">#1976D2</color>                  <!-- Main brand color -->
+    <color name="colorPrimaryVariant">#0D47A1</color>           <!-- Darker variant of primary -->
+    <color name="colorOnPrimary">#FFFFFF</color>                <!-- Text/icons on primary color -->
 
-    <!-- Secondary colors (Thai flag red) -->
-    <color name="colorSecondary">#DC2626</color>
-    <color name="colorSecondaryVariant">#EF4444</color>
-    <color name="colorOnSecondary">#FFFFFF</color>
+    <color name="colorSecondary">#FF5722</color>                <!-- Accent color -->
+    <color name="colorSecondaryVariant">#D84315</color>         <!-- Darker variant of secondary -->
+    <color name="colorOnSecondary">#FFFFFF</color>              <!-- Text/icons on secondary color -->
 
-    <!-- Surface colors -->
-    <color name="colorSurface">#FFFFFF</color>
-    <color name="colorOnSurface">#1F2937</color>
+    <color name="colorSurface">#FFFFFF</color>                  <!-- Card/surface background -->
+    <color name="colorOnSurface">#212121</color>                <!-- Text/icons on surface -->
 
-    <!-- Background colors -->
-    <color name="colorBackground">#F9FAFB</color>
-    <color name="colorOnBackground">#1F2937</color>
+    <color name="colorBackground">#FAFAFA</color>               <!-- Screen background -->
+    <color name="colorOnBackground">#212121</color>             <!-- Text/icons on background -->
 
-    <!-- Error colors -->
-    <color name="colorError">#DC2626</color>
-    <color name="colorOnError">#FFFFFF</color>
+    <color name="colorError">#F44336</color>                    <!-- Error color -->
+    <color name="colorOnError">#FFFFFF</color>                  <!-- Text/icons on error color -->
 
-    <!-- Additional Thai Sign Language app specific colors -->
-    <color name="tsl_accent">#F59E0B</color>
-    <color name="tsl_success">#10B981</color>
-    <color name="tsl_warning">#F59E0B</color>
-    <color name="tsl_info">#3B82F6</color>
+    <!-- Your Custom Colors (from before) -->
+    <color name="button_primary_color">#1976D2</color>          <!-- Blue - trustworthy, official -->
+    <color name="button_primary_dark">#0D47A1</color>           <!-- Darker blue for pressed state -->
+    <color name="primary_light_color">#BBDEFB</color>           <!-- Light blue for ripple effect -->
 
-    <!-- Camera overlay colors -->
-    <color name="camera_overlay">#80000000</color>
-    <color name="gesture_detected">#10B981</color>
-    <color name="gesture_analyzing">#F59E0B</color>
+    <!-- Secondary Colors -->
+    <color name="grey_400">#BDBDBD</color>                      <!-- Light grey for disabled state -->
 
-    <!-- Common colors -->
-    <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
-    <color name="transparent">#00000000</color>
+    <!-- Additional recommended colors for your app -->
+    <color name="primary_color">#1976D2</color>                 <!-- Main blue -->
+    <color name="primary_dark">#0D47A1</color>                  <!-- Dark blue -->
+    <color name="accent_color">#FF5722</color>                  <!-- Orange accent for important actions -->
 
-    <!-- Text colors -->
-    <color name="text_primary">#1F2937</color>
-    <color name="text_secondary">#6B7280</color>
-    <color name="text_hint">#9CA3AF</color>
+    <!-- Background Colors -->
+    <color name="background_white">#FFFFFF</color>
+    <color name="background_light_grey">#F5F5F5</color>
+    <color name="background_color">#F8F9FA</color>               <!-- Main screen background -->
+    <color name="surface_color">#FAFAFA</color>                 <!-- Light surface for video background -->
+
+    <!-- Text Colors -->
+    <color name="text_primary">#212121</color>                  <!-- Dark text -->
+    <color name="text_secondary">#757575</color>                <!-- Secondary text -->
+    <color name="text_white">#FFFFFF</color>                    <!-- White text -->
+    <color name="primary_text_color">#1A237E</color>            <!-- Header text (dark blue) -->
+    <color name="secondary_text_color">#616161</color>          <!-- Subtitle and description text -->
+    <color name="button_text_color">#FFFFFF</color>             <!-- White text on buttons -->
+    <color name="hint_text_color">#9E9E9E</color>               <!-- Hint/helper text -->
+
+    <!-- Border and Stroke Colors -->
+    <color name="border_color">#E0E0E0</color>                  <!-- Light grey border -->
+
+    <!-- Status Colors for Government Services -->
+    <color name="success_green">#4CAF50</color>                 <!-- Success messages -->
+    <color name="warning_orange">#FF9800</color>                <!-- Warnings -->
+    <color name="error_red">#F44336</color>                     <!-- Errors -->
+
+    <!-- Accessibility Colors (High Contrast) -->
+    <color name="high_contrast_blue">#0D47A1</color>
+    <color name="high_contrast_yellow">#FFD600</color>          <!-- For important notifications -->
 </resources>

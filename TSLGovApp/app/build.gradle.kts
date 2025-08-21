@@ -106,3 +106,11 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+
+// Add this outside android block
+configurations.all {
+    exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    resolutionStrategy {
+        force("com.google.protobuf:protobuf-java:3.21.12")
+    }
+}
