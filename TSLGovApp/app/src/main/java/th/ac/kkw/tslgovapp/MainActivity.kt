@@ -9,11 +9,14 @@ import android.widget.Button
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import th.ac.kkw.tslgovapp.CameraActivity
+import th.ac.kkw.tslgovapp.LearnActivity
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var videoView: VideoView
     private lateinit var startButton: Button
+    private lateinit var learnButton: Button
     private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,11 +26,13 @@ class MainActivity : AppCompatActivity() {
         initializeViews()
         setupVideoPlayer()
         setupStartButton()
+        setupLearnButton()
     }
 
     private fun initializeViews() {
         videoView = findViewById(R.id.videoView)
         startButton = findViewById(R.id.btnStartSignLanguage)
+        learnButton = findViewById(R.id.btnLearnSignLanguage)
     }
 
     private fun setupVideoPlayer() {
@@ -62,7 +67,18 @@ class MainActivity : AppCompatActivity() {
     private fun setupStartButton() {
         startButton.setOnClickListener {
             // ไปยังหน้าแปลภาษามือ
-            val intent = Intent(this, CameraActivity::class.java)
+            var intent = Intent(this, CameraActivity::class.java)
+            startActivity(intent)
+
+            // หยุดการเล่นวิดีโอเมื่อออกจากหน้านี้
+            pauseVideo()
+        }
+    }
+
+    private fun setupLearnButton() {
+        learnButton.setOnClickListener {
+            // ไปยังหน้าแปลภาษามือ
+            var intent = Intent(this, LearnActivity::class.java)
             startActivity(intent)
 
             // หยุดการเล่นวิดีโอเมื่อออกจากหน้านี้

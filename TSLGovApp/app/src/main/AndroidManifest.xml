@@ -38,7 +38,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
             android:theme="@style/Theme.ThaiSignLanguage.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -46,11 +45,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Learn Activity -->
+        <activity
+            android:name=".LearnActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ThaiSignLanguage.NoActionBar"
+            android:parentActivityName=".MainActivity" />
+
         <!-- Camera Activity -->
         <activity
             android:name=".CameraActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
             android:theme="@style/Theme.ThaiSignLanguage.NoActionBar"
             android:parentActivityName=".MainActivity" />
 

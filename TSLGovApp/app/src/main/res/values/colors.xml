@@ -23,6 +23,14 @@
     <color name="button_primary_dark">#0D47A1</color>           <!-- Darker blue for pressed state -->
     <color name="primary_light_color">#BBDEFB</color>           <!-- Light blue for ripple effect -->
 
+    <!-- Learn Button Colors (Green) -->
+    <color name="button_learn_color">#4CAF50</color>
+    <color name="button_learn_dark">#388E3C</color>
+
+    <!-- Practice Button Colors (Blue) -->
+    <color name="button_practice_color">#2196F3</color>
+    <color name="button_practice_dark">#1976D2</color>
+
     <!-- Secondary Colors -->
     <color name="grey_400">#BDBDBD</color>                      <!-- Light grey for disabled state -->
 
@@ -43,7 +51,7 @@
     <color name="text_white">#FFFFFF</color>                    <!-- White text -->
     <color name="primary_text_color">#1A237E</color>            <!-- Header text (dark blue) -->
     <color name="secondary_text_color">#616161</color>          <!-- Subtitle and description text -->
-    <color name="button_text_color">#FFFFFF</color>             <!-- White text on buttons -->
+    <color name="button_text_color">#FFFFFF</color>!-- White text on buttons -->
     <color name="hint_text_color">#9E9E9E</color>               <!-- Hint/helper text -->
 
     <!-- Border and Stroke Colors -->

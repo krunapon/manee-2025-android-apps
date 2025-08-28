@@ -75,11 +75,11 @@
             android:id="@+id/btnLearnSignLanguage"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:text="เรียนรู้ภาษามือ"
+            android:text="@string/learn_button_text"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/button_text_color"
-            android:background="@drawable/button_primary_background"
+            android:background="@drawable/button_learn_selector"
             android:elevation="8dp"
             android:translationZ="8dp" />
         <!-- Main Start Button -->
@@ -87,12 +87,12 @@
             android:id="@+id/btnStartSignLanguage"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:text="เริ่มใช้ภาษามือ"
+            android:text="@string/start_button_text"
             android:textSize="18sp"
             android:layout_marginTop="16dp"
             android:textStyle="bold"
             android:textColor="@color/button_text_color"
-            android:background="@drawable/button_primary_background"
+            android:background="@drawable/button_practice_selector"
             android:elevation="8dp"
             android:translationZ="8dp" />
 
@@ -101,7 +101,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="กดปุ่มเพื่อเริ่มการแปลภาษามือ"
+            android:text="@string/hint_start_tsl"
             android:textSize="16sp"
             android:textColor="@color/hint_text_color"
             android:textAlignment="center" />
