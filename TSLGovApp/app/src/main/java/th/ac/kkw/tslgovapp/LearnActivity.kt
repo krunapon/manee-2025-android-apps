@@ -27,64 +27,59 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val signLanguageWords = listOf(
         SignWord(
             word = "บัตรประชาชน",
-            meaning = "บัตรประจำตัวประชาชน ใช้เมื่อต้องการแสดงเอกสารประจำตัว",
+            meaning = "บัตรประจำตัวประชาชน",
             videoFileName = "id_card.mp4",
             category = "สถานีตำรวจ"
         ),
-        /*
-        // หมวดโรงพยาบาล
-        SignWord(
-            word = "เจ็บ",
-            meaning = "รู้สึกเจ็บปวดทั่วไป ใช้เมื่อมีอาการไม่สบายในร่างกาย",
-            videoFileName = "jerb_hospital.mp4",
-            category = "โรงพยาบาล"
-        ),
-        SignWord(
-            word = "ปวด",
-            meaning = "รู้สึกปวดเฉพาะจุด ใช้เมื่อมีอาการปวดในส่วนใดส่วนหนึ่งของร่างกาย",
-            videoFileName = "puad_hospital.mp4",
-            category = "โรงพยาบาล"
-        ),
-        SignWord(
-            word = "ช่วยด้วย",
-            meaning = "ขอความช่วยเหลือในกรณีฉุกเฉิน เมื่อต้องการความช่วยเหลือทันที",
-            videoFileName = "chuay_duay_hospital.mp4",
-            category = "โรงพยาบาล"
-        ),
-
         // หมวดสถานีตำรวจ
         SignWord(
-            word = "ของหาย",
-            meaning = "แจ้งเมื่อสูญเสียทรัพย์สิน สิ่งของหายไป ต้องการแจ้งความ",
-            videoFileName = "kong_haai_police.mp4",
+            word = "หาย",
+            meaning = "สิ่งของหายไป",
+            videoFileName = "lost.mp4",
             category = "สถานีตำรวจ"
         ),
-
         SignWord(
             word = "แจ้งความ",
-            meaning = "การแจ้งความดำเนินคดี เมื่อต้องการแจ้งเหตุการณ์ต่อเจ้าหน้าที่",
-            videoFileName = "jaeng_kwam_police.mp4",
+            meaning = "การแจ้งความดำเนินคดี",
+            videoFileName = "report.mp4",
             category = "สถานีตำรวจ"
         ),
-
-        // หมวดสถานีรถไฟ/ขนส่ง
         SignWord(
-            word = "ตั๋วรถไฟ",
-            meaning = "ตั๋วสำหรับเดินทางโดยรถไฟ ใช้เมื่อต้องการซื้อหรือถามเรื่องตั๋ว",
-            videoFileName = "tua_rot_fai_station.mp4",
-            category = "สถานีรถไฟ"
+            word = "เจ็บคอ",
+            meaning = "เจ็บคอ",
+            videoFileName = "neck_ache.mp4",
+            category = "โรงพยาบาล"
         ),
         SignWord(
-            word = "หลงทาง",
-            meaning = "เสียทิศทาง ไม่รู้เส้นทาง ต้องการขอความช่วยเหลือบอกทิศทาง",
-            videoFileName = "long_taang_station.mp4",
-            category = "สถานีรถไฟ"
+            word = "ปวดหัว",
+            meaning = "ปวดหัว",
+            videoFileName = "head_ache.mp4",
+            category = "โรงพยาบาล"
+        ),
+        SignWord(
+            word = "ช่วย",
+            meaning = "ช่วย",
+            videoFileName = "help.mp4",
+            category = "โรงพยาบาล"
+        ),
+        // หมวดสนามบิน
+        /*SignWord(
+            word = "หนังสือเดินทาง",
+            meaning = "หนังสือเดินทาง",
+            videoFileName = "passport.mp4",
+            category = "สนามบิน"
+        ),
+        SignWord(
+            word = "เครื่องบิน",
+            meaning = "เครื่องบิน",
+            videoFileName = "airplane.mp4",
+            category = "สนามบิน"
         ),
         SignWord(
             word = "ห้องน้ำ",
-            meaning = "ห้องสุขา ใช้เมื่อต้องการถามหาห้องน้ำหรือสถานที่ใช้สุขา",
-            videoFileName = "hong_naam_station.mp4",
-            category = "สถานีรถไฟ"
+            meaning = "ห้องน้ำ",
+            videoFileName = "toilet.mp4",
+            category = "สนามบิน"
         )*/
     )
 
@@ -185,8 +180,8 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tvWordMeaning.text = "ความหมาย: ${currentWord.meaning}"
 
         // พูดเสียงภาษาไทย
-        speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
-
+        //speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
+        speakText(currentWord.word)
         // แสดง Toast แจ้งเตือน
         Toast.makeText(this, "กำลังแปล: ${currentWord.word}", Toast.LENGTH_SHORT).show()
     }

@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupVideoPlayer() {
         try {
             // วางไฟล์วิดีโอในโฟลเดอร์ res/raw/intro_video.mp4
-            val uri = Uri.parse("android.resource://$packageName/${R.raw.intro_video}")
+            val uri = Uri.parse("android.resource://$packageName/${R.raw.sawasdee}")
             videoView.setVideoURI(uri)
 
             // ตั้งค่า listener สำหรับการเล่นวิดีโอ
