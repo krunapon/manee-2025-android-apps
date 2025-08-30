@@ -3,4 +3,6 @@
     <string name="start_button_text">เริ่มใช้ภาษามือ</string>
     <string name="learn_button_text">เรียนรู้ภาษามือ</string>
     <string name="hint_start_tsl">กดปุ่มเพื่อเริ่มการแปลภาษามือ</string>
+    <string name="replay_text">เล่นซ้ำ</string>
+    <string name="back_text">← กลับ</string>
 </resources>

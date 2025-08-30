@@ -17,6 +17,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var btnTranslate: Button
     private lateinit var btnOtherWord: Button
     private lateinit var btnBack: Button
+    private lateinit var btnReplay: Button
     private lateinit var tvWordTitle: TextView
     private lateinit var tvWordMeaning: TextView
     private lateinit var textToSpeech: TextToSpeech
@@ -62,8 +63,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             videoFileName = "help.mp4",
             category = "โรงพยาบาล"
         ),
-        // หมวดสนามบิน
-        /*SignWord(
+        SignWord(
             word = "หนังสือเดินทาง",
             meaning = "หนังสือเดินทาง",
             videoFileName = "passport.mp4",
@@ -80,7 +80,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             meaning = "ห้องน้ำ",
             videoFileName = "toilet.mp4",
             category = "สนามบิน"
-        )*/
+        )
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -103,6 +103,11 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnBack.setOnClickListener {
             finish()
         }
+
+        btnReplay.setOnClickListener {
+            // เล่นซ้ำวิดีโอ
+            loadCurrentWord()
+        }
     }
 
     private fun initializeViews() {
@@ -110,7 +115,8 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnTranslate = findViewById(R.id.btnTranslate)
         btnOtherWord = findViewById(R.id.btnOtherWord)
         tvWordMeaning = findViewById(R.id.tvWordMeaning)
-        btnBack = findViewById(R.id.btn_back)
+        btnBack = findViewById(R.id.btnBack)
+        btnReplay = findViewById(R.id.btnReplay)
     }
 
     private fun initializeTextToSpeech() {
