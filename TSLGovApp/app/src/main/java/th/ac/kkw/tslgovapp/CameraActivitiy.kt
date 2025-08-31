@@ -39,6 +39,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var btnStartStop: Button
     private lateinit var btnRepeatSound: Button
     private lateinit var btnBack: Button
+    private lateinit var btnSwitchCamera: Button // NEW: Camera switch button
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalyzer: ImageAnalysis? = null
@@ -50,6 +51,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var isDetecting = false
     private var lastRecognizedWord = ""
     private var currentVideoFile: File? = null
+
+    // NEW: Camera selector tracking
+    private var isFrontCamera = true
+    private var currentCameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 10
@@ -93,6 +98,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnStartStop = findViewById(R.id.btn_start_stop)
         btnRepeatSound = findViewById(R.id.btn_repeat_sound)
         btnBack = findViewById(R.id.btn_back)
+        btnSwitchCamera = findViewById(R.id.btn_switch_camera) // NEW: Initialize switch button
     }
 
     private fun setupClickListeners() {
@@ -112,6 +118,11 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             finish()
         }
 
+        // NEW: Camera switch button click listener
+        btnSwitchCamera.setOnClickListener {
+            switchCamera()
+        }
+
         // Add long press on preview for testing
         previewView.setOnLongClickListener {
             if (isDetecting) {
@@ -121,6 +132,47 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Toast.makeText(this, "Start detection first", Toast.LENGTH_SHORT).show()
             }
             true
+        }
+    }
+
+    // NEW: Camera switching function
+    private fun switchCamera() {
+        // Stop current detection if running
+        if (isDetecting) {
+            Toast.makeText(this, "กรุณาหยุดการตรวจจับก่อนเปลี่ยนกล้อง", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Toggle camera selector
+        isFrontCamera = !isFrontCamera
+        currentCameraSelector = if (isFrontCamera) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        }
+
+        // Update button text
+        btnSwitchCamera.text = if (isFrontCamera) "กล้องหลัง" else "กล้องหน้า"
+
+        // Show toast message
+        val cameraType = if (isFrontCamera) "กล้องหน้า" else "กล้องหลัง"
+        Toast.makeText(this, "เปลี่ยนเป็น$cameraType", Toast.LENGTH_SHORT).show()
+
+        // Restart camera with new selector
+        startCamera()
+
+        Log.d(TAG, "Switched to ${if (isFrontCamera) "front" else "back"} camera")
+    }
+
+    // NEW: Check if device has both cameras
+    private fun hasBothCameras(): Boolean {
+        val cameraProvider = this.cameraProvider ?: return false
+        return try {
+            cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) &&
+                    cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking camera availability", e)
+            false
         }
     }
 
@@ -148,6 +200,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         cameraProviderFuture.addListener({
             try {
                 cameraProvider = cameraProviderFuture.get()
+
+                // NEW: Update switch button visibility based on camera availability
+                if (hasBothCameras()) {
+                    btnSwitchCamera.visibility = Button.VISIBLE
+                    btnSwitchCamera.text = if (isFrontCamera) "กล้องหลัง" else "กล้องหน้า"
+                } else {
+                    btnSwitchCamera.visibility = Button.GONE
+                }
 
                 // Create Preview
                 val preview = Preview.Builder()
@@ -190,8 +250,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
 
-                // Use front camera (better for sign language)
-                val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+                // NEW: Use current camera selector instead of fixed front camera
+                val cameraSelector = currentCameraSelector
 
                 // Unbind use cases before rebinding
                 cameraProvider?.unbindAll()
@@ -201,7 +261,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     this, cameraSelector, preview, imageAnalyzer, videoCapture
                 )
 
-                Log.d(TAG, "Camera started successfully")
+                Log.d(TAG, "Camera started successfully with ${if (isFrontCamera) "front" else "back"} camera")
 
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -225,6 +285,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Update repeat button text
             btnRepeatSound.text = "เปิดวิดีโอ"
 
+            // NEW: Enable camera switch when not detecting
+            btnSwitchCamera.isEnabled = true
+
             Log.d(TAG, "Detection and recording stopped")
         } else {
             // Start detection and recording
@@ -238,17 +301,24 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Update repeat button text
             btnRepeatSound.text = "เล่นซ้ำ"
 
+            // NEW: Disable camera switch during detection/recording
+            btnSwitchCamera.isEnabled = false
+
             Log.d(TAG, "Detection and recording started")
         }
     }
 
     // FIXED: Create video file in accessible Downloads directory
     private fun createVideoFile(name: String): File {
+        // NEW: Include camera type in filename
+        val cameraType = if (isFrontCamera) "front" else "back"
+        val fileName = "TSL_${cameraType}_${name}.mp4"
+
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // Android 10+ - Use Downloads folder
             File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "TSL_${name}.mp4"
+                fileName
             )
         } else {
             // Android 9 and below - Use Movies folder
@@ -257,7 +327,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 "TSL_SignLanguage"
             )
             moviesDir.mkdirs()
-            File(moviesDir, "TSL_${name}.mp4")
+            File(moviesDir, fileName)
         }
     }
 
@@ -287,8 +357,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 when(recordEvent) {
                     is VideoRecordEvent.Start -> {
                         btnStartStop.isEnabled = true
-                        Toast.makeText(this, "เริ่มบันทึกวิดีโอ", Toast.LENGTH_SHORT).show()
-                        Log.d(TAG, "Video recording started")
+                        val cameraType = if (isFrontCamera) "กล้องหน้า" else "กล้องหลัง"
+                        Toast.makeText(this, "เริ่มบันทึกวิดีโอ ($cameraType)", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "Video recording started with ${if (isFrontCamera) "front" else "back"} camera")
                     }
                     is VideoRecordEvent.Finalize -> {
                         if (!recordEvent.hasError()) {
@@ -323,13 +394,12 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         recording = null
     }
 
-    // FIXED: Use FileProvider for opening videos on Android 7+
+    // Rest of your existing methods remain the same...
     private fun openVideo() {
         currentVideoFile?.let { file ->
             if (file.exists()) {
                 try {
                     val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        // Use FileProvider for Android 7+
                         FileProvider.getUriForFile(
                             this,
                             "${applicationContext.packageName}.fileprovider",
