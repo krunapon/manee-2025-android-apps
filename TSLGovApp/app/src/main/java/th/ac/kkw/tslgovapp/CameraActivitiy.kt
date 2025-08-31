@@ -1,9 +1,13 @@
 package th.ac.kkw.tslgovapp
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -16,9 +20,13 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.*
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -34,15 +42,26 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalyzer: ImageAnalysis? = null
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var recording: Recording? = null
     private lateinit var cameraExecutor: ExecutorService
 
     private var textToSpeech: TextToSpeech? = null
     private var isDetecting = false
     private var lastRecognizedWord = ""
+    private var currentVideoFile: File? = null
 
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+        private val REQUIRED_PERMISSIONS = mutableListOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO
+        ).apply {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
+
         private const val TAG = "CameraActivity"
     }
 
@@ -78,11 +97,15 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun setupClickListeners() {
         btnStartStop.setOnClickListener {
-            toggleDetection()
+            toggleDetectionAndRecording()
         }
 
         btnRepeatSound.setOnClickListener {
-            repeatLastSound()
+            if (currentVideoFile != null && currentVideoFile!!.exists()) {
+                openVideo()
+            } else {
+                repeatLastSound()
+            }
         }
 
         btnBack.setOnClickListener {
@@ -93,7 +116,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         previewView.setOnLongClickListener {
             if (isDetecting) {
                 testGestureDetection()
-                Toast.makeText(this, "🧪 Test gesture triggered", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Test gesture triggered", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Start detection first", Toast.LENGTH_SHORT).show()
             }
@@ -113,7 +136,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (allPermissionsGranted()) {
                 startCamera()
             } else {
-                Toast.makeText(this, "กรุณาอนุญาตการใช้กล้องเพื่อใช้งานระบบ", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "กรุณาอนุญาตการใช้กล้องและไมโครโฟนเพื่อใช้งานระบบ", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
@@ -133,7 +156,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                // Create enhanced Image Analyzer with explicit types
+                // Create Image Analyzer
                 imageAnalyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setTargetRotation(previewView.display.rotation)
@@ -144,7 +167,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             DebugSignLanguageAnalyzer(
                                 onResult = { result: String ->
                                     runOnUiThread {
-                                        updateResult(result)
+                                        // updateResult(result) - commented out for testing
                                     }
                                 },
                                 onDebug = { debugInfo: String ->
@@ -156,6 +179,17 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         )
                     }
 
+                // Create VideoCapture
+                val recorder = Recorder.Builder()
+                    .setQualitySelector(
+                        QualitySelector.from(
+                            Quality.HD,
+                            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
+                        )
+                    )
+                    .build()
+                videoCapture = VideoCapture.withOutput(recorder)
+
                 // Use front camera (better for sign language)
                 val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
@@ -164,7 +198,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 // Bind use cases to camera
                 cameraProvider?.bindToLifecycle(
-                    this, cameraSelector, preview, imageAnalyzer
+                    this, cameraSelector, preview, imageAnalyzer, videoCapture
                 )
 
                 Log.d(TAG, "Camera started successfully")
@@ -177,22 +211,191 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun toggleDetection() {
-        isDetecting = !isDetecting
+    private fun toggleDetectionAndRecording() {
         if (isDetecting) {
-            btnStartStop.text = "⏹️ หยุดตรวจจับ"
-            btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-            resultText.text = "กำลังตรวจจับภาษามือ..."
-            largeResultText.text = "พร้อมรับภาษามือ"
-            Log.d(TAG, "🎯 Detection started")
-        } else {
-            btnStartStop.text = "🎯 เริ่มตรวจจับ"
+            // Stop detection and recording
+            stopRecording()
+            isDetecting = false
+            btnStartStop.text = "เริ่มตรวจจับ"
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             resultText.text = "ทำภาษามือเพื่อเริ่มการแปล"
             largeResultText.text = "ยังไม่มีการตรวจจับ"
             largeResultText.setBackgroundColor(Color.TRANSPARENT)
-            Log.d(TAG, "⏹️ Detection stopped")
+
+            // Update repeat button text
+            btnRepeatSound.text = "เปิดวิดีโอ"
+
+            Log.d(TAG, "Detection and recording stopped")
+        } else {
+            // Start detection and recording
+            startRecording()
+            isDetecting = true
+            btnStartStop.text = "หยุดตรวจจับ"
+            btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+            resultText.text = "กำลังตรวจจับภาษามือ..."
+            largeResultText.text = "พร้อมรับภาษามือ"
+
+            // Update repeat button text
+            btnRepeatSound.text = "เล่นซ้ำ"
+
+            Log.d(TAG, "Detection and recording started")
         }
+    }
+
+    // FIXED: Create video file in accessible Downloads directory
+    private fun createVideoFile(name: String): File {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ - Use Downloads folder
+            File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "TSL_${name}.mp4"
+            )
+        } else {
+            // Android 9 and below - Use Movies folder
+            val moviesDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+                "TSL_SignLanguage"
+            )
+            moviesDir.mkdirs()
+            File(moviesDir, "TSL_${name}.mp4")
+        }
+    }
+
+    private fun startRecording() {
+        val videoCapture = this.videoCapture ?: return
+
+        btnStartStop.isEnabled = false
+
+        val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+            .format(System.currentTimeMillis())
+
+        // FIXED: Use accessible Downloads directory instead of app private directory
+        val videoFile = createVideoFile(name)
+        currentVideoFile = videoFile
+
+        val outputOptions = FileOutputOptions.Builder(videoFile).build()
+
+        recording = videoCapture.output
+            .prepareRecording(this, outputOptions)
+            .apply {
+                if (ContextCompat.checkSelfPermission(this@CameraActivity, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                    withAudioEnabled()
+                }
+            }
+            .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
+                when(recordEvent) {
+                    is VideoRecordEvent.Start -> {
+                        btnStartStop.isEnabled = true
+                        Toast.makeText(this, "เริ่มบันทึกวิดีโอ", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "Video recording started")
+                    }
+                    is VideoRecordEvent.Finalize -> {
+                        if (!recordEvent.hasError()) {
+                            val savedUri = recordEvent.outputResults.outputUri
+
+                            // Show accessible path information
+                            val accessPath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                "Downloads folder"
+                            } else {
+                                "Movies/TSL_SignLanguage folder"
+                            }
+
+                            val msg = "บันทึกวิดีโอสำเร็จ!\nดูได้ใน: $accessPath\nชื่อไฟล์: ${videoFile.name}"
+                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                            resultText.text = "บันทึกแล้ว: ${videoFile.name}"
+
+                            Log.d(TAG, "Video saved to: ${videoFile.absolutePath}")
+                        } else {
+                            recording?.close()
+                            recording = null
+                            Log.e(TAG, "Video recording error: ${recordEvent.error}")
+                            Toast.makeText(this, "การบันทึกวิดีโอล้มเหลว", Toast.LENGTH_SHORT).show()
+                        }
+                        btnStartStop.isEnabled = true
+                    }
+                }
+            }
+    }
+
+    private fun stopRecording() {
+        recording?.stop()
+        recording = null
+    }
+
+    // FIXED: Use FileProvider for opening videos on Android 7+
+    private fun openVideo() {
+        currentVideoFile?.let { file ->
+            if (file.exists()) {
+                try {
+                    val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        // Use FileProvider for Android 7+
+                        FileProvider.getUriForFile(
+                            this,
+                            "${applicationContext.packageName}.fileprovider",
+                            file
+                        )
+                    } else {
+                        Uri.fromFile(file)
+                    }
+
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "video/mp4")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    }
+
+                    if (intent.resolveActivity(packageManager) != null) {
+                        startActivity(intent)
+                        Toast.makeText(this, "เปิดวิดีโอ: ${file.name}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        openFileManager()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Cannot open video: ${e.message}")
+                    Toast.makeText(this, "ไม่สามารถเปิดวิดีโอได้", Toast.LENGTH_SHORT).show()
+                    showFileLocation()
+                }
+            } else {
+                Toast.makeText(this, "ไม่พบไฟล์วิดีโอ", Toast.LENGTH_SHORT).show()
+            }
+        } ?: Toast.makeText(this, "ยังไม่มีวิดีโอที่บันทึกไว้", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openFileManager() {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(
+                        Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"),
+                        "*/*"
+                    )
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            } else {
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(
+                        Uri.parse("content://com.android.externalstorage.documents/document/primary%3AMovies%2FTSL_SignLanguage"),
+                        "*/*"
+                    )
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            }
+
+            startActivity(intent)
+            Toast.makeText(this, "เปิด File Manager แล้ว", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Cannot open file manager: ${e.message}")
+            showFileLocation()
+        }
+    }
+
+    private fun showFileLocation() {
+        val locationMsg = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            "เปิด Files app → Downloads → หาไฟล์ TSL_xxx.mp4"
+        } else {
+            "เปิด Files app → Movies → TSL_SignLanguage"
+        }
+        Toast.makeText(this, "หาไฟล์ได้ที่: $locationMsg", Toast.LENGTH_LONG).show()
     }
 
     private fun updateResult(result: String) {
@@ -214,7 +417,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 largeResultText.setBackgroundColor(Color.TRANSPARENT)
             }, 1000)
 
-            Log.d(TAG, "✅ Sign detected and announced: $result")
+            Log.d(TAG, "Sign detected and announced: $result")
         }
     }
 
@@ -255,5 +458,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         cameraExecutor.shutdown()
         textToSpeech?.stop()
         textToSpeech?.shutdown()
+        recording?.stop()
     }
 }

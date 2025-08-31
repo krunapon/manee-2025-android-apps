@@ -12,9 +12,9 @@ import kotlin.math.*
 class SignLanguageAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
 
     // Government vocabulary organized by context
-    private val hospitalWords = listOf("เจ็บ", "ปวด", "ช่วยด้วย")
-    private val policeWords = listOf("ของหาย", "บัตรประชาชน", "แจ้งความ")
-    private val trainWords = listOf("ตั๋วรถไฟ", "หลงทาง", "ห้องน้ำ")
+    private val hospitalWords = listOf("เจ็บคอ", "ปวดหัว", "ช่วย")
+    private val policeWords = listOf("หาย", "บัตรประชาชน", "แจ้งความ")
+    private val trainWords = listOf("หนังสือเดินทาง", "เครื่องบิน", "ห้องน้ำ")
 
     private var frameCount = 0
     private var lastDetectionTime = 0L
