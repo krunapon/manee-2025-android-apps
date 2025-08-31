@@ -10,6 +10,7 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import java.util.*
+import kotlin.math.sign
 
 class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -23,6 +24,8 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var textToSpeech: TextToSpeech
 
     private var currentWordIndex = 0
+    private var isTtsReady = false
+    private var shouldAutoSpeak = false
 
     // ข้อมูลคำศัพท์ภาษามือตามที่ระบุในเอกสาร
     private val signLanguageWords = listOf(
@@ -161,6 +164,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 // ถ้าไม่พบไฟล์วิดีโอ ใช้วิดีโอ demo
                 loadDemoVideo()
             }
+            autoSpeakCurrentWord()
         } catch (e: Exception) {
             Log.e("LearnActivity", "Error loading video", e)
             loadDemoVideo()
@@ -179,15 +183,25 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun autoSpeakCurrentWord() {
+        val currentWord = signLanguageWords[currentWordIndex]
+        // พูดเสียงภาษาไทย
+        //speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
+        if (isTtsReady) {
+            speakText(currentWord.word)
+        } else {
+            shouldAutoSpeak = true
+        }
+    }
+
     private fun translateCurrentWord() {
         val currentWord = signLanguageWords[currentWordIndex]
 
         // แสดงความหมาย
         tvWordMeaning.text = "ความหมาย: ${currentWord.meaning}"
 
-        // พูดเสียงภาษาไทย
-        //speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
         speakText(currentWord.word)
+
         // แสดง Toast แจ้งเตือน
         Toast.makeText(this, "กำลังแปล: ${currentWord.word}", Toast.LENGTH_SHORT).show()
     }
@@ -220,6 +234,14 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 textToSpeech.setLanguage(Locale.US)
             } else {
                 Log.d("LearnActivity", "TextToSpeech initialized successfully")
+            }
+
+            isTtsReady = true
+
+            if (shouldAutoSpeak) {
+                val currentWord = signLanguageWords[currentWordIndex]
+                speakText(currentWord.word)
+                shouldAutoSpeak = false
             }
         } else {
             Log.e("LearnActivity", "TextToSpeech initialization failed")
