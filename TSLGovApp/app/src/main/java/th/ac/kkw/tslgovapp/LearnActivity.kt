@@ -3,8 +3,11 @@ package th.ac.kkw.tslgovapp
 import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
@@ -14,12 +17,13 @@ import java.util.*
 class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var videoView: VideoView
-    private lateinit var btnTranslate: Button
+    private lateinit var btnReplay: Button
     private lateinit var btnOtherWord: Button
     private lateinit var btnBack: Button
-    private lateinit var btnReplay: Button
+    private lateinit var btnReplayVideo: Button
     private lateinit var tvWordTitle: TextView
     private lateinit var tvWordMeaning: TextView
+    private lateinit var etSearchWord: EditText
     private lateinit var textToSpeech: TextToSpeech
 
     private var currentWordIndex = 0
@@ -90,10 +94,12 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         initializeViews()
         initializeTextToSpeech()
         setupVideoView()
+        setupSearchFunctionality()
         loadCurrentWord()
 
-        btnTranslate.setOnClickListener {
-            translateCurrentWord()
+        // เปลี่ยนจาก btnTranslate เป็น btnReplay สำหรับเล่นซ้ำ
+        btnReplay.setOnClickListener {
+            replayCurrentWord()
         }
 
         btnOtherWord.setOnClickListener {
@@ -104,19 +110,21 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             finish()
         }
 
-        btnReplay.setOnClickListener {
-            // เล่นซ้ำวิดีโอ
-            loadCurrentWord()
+        btnReplayVideo.setOnClickListener {
+            // เล่นซ้ำวิดีโอเท่านั้น (ไม่พูด)
+            playVideoOnly()
         }
     }
 
     private fun initializeViews() {
         videoView = findViewById(R.id.videoView)
-        btnTranslate = findViewById(R.id.btnTranslate)
+        btnReplay = findViewById(R.id.btnTranslate) // เปลี่ยนจาก btnTranslate เป็น btnReplay
         btnOtherWord = findViewById(R.id.btnOtherWord)
         tvWordMeaning = findViewById(R.id.tvWordMeaning)
+        tvWordTitle = findViewById(R.id.tvWordTitle)
         btnBack = findViewById(R.id.btnBack)
-        btnReplay = findViewById(R.id.btnReplay)
+        btnReplayVideo = findViewById(R.id.btnReplay)
+        etSearchWord = findViewById(R.id.etSearchWord) // EditText ใหม่สำหรับค้นหา
     }
 
     private fun initializeTextToSpeech() {
@@ -136,14 +144,44 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun setupSearchFunctionality() {
+        etSearchWord.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                val searchText = s.toString().trim()
+                if (searchText.isNotEmpty()) {
+                    searchAndDisplayWord(searchText)
+                }
+            }
+        })
+    }
+
+    private fun searchAndDisplayWord(searchText: String) {
+        val foundWordIndex = signLanguageWords.indexOfFirst { word ->
+            word.word.contains(searchText, ignoreCase = true) ||
+                    word.meaning.contains(searchText, ignoreCase = true)
+        }
+
+        if (foundWordIndex != -1) {
+            currentWordIndex = foundWordIndex
+            loadCurrentWord()
+            Toast.makeText(this, "พบคำ: ${signLanguageWords[currentWordIndex].word}", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "ไม่พบคำที่ค้นหา: $searchText", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun loadCurrentWord() {
         val currentWord = signLanguageWords[currentWordIndex]
 
         // แสดงชื่อคำและหมวดหมู่
-        //tvWordTitle.text = "${currentWord.word} (${currentWord.category})"
+        tvWordTitle.text = "${currentWord.word} (${currentWord.category})"
 
-        // ซ่อนความหมายไว้ก่อน
-        tvWordMeaning.text = "กดปุ่ม 'แปล' เพื่อดูความหมาย"
+        // แสดงความหมายทันทีเมื่อโหลดคำ
+        tvWordMeaning.text = "ความหมาย: ${currentWord.meaning}"
 
         // โหลดวิดีโอจาก raw folder
         try {
@@ -165,6 +203,9 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             Log.e("LearnActivity", "Error loading video", e)
             loadDemoVideo()
         }
+
+        // พูดเสียงภาษาไทยทันทีเมื่อโหลดคำ
+        speakText(currentWord.word)
     }
 
     private fun loadDemoVideo() {
@@ -179,17 +220,20 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun translateCurrentWord() {
+    private fun replayCurrentWord() {
         val currentWord = signLanguageWords[currentWordIndex]
 
-        // แสดงความหมาย
-        tvWordMeaning.text = "ความหมาย: ${currentWord.meaning}"
-
-        // พูดเสียงภาษาไทย
-        //speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
+        // เล่นซ้ำทั้งวิดีโอและเสียง
+        playVideoOnly()
         speakText(currentWord.word)
-        // แสดง Toast แจ้งเตือน
-        Toast.makeText(this, "กำลังแปล: ${currentWord.word}", Toast.LENGTH_SHORT).show()
+
+        Toast.makeText(this, "เล่นซ้ำ: ${currentWord.word}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun playVideoOnly() {
+        // เล่นวิดีโอซ้ำจากตำแหน่งเริ่มต้น
+        videoView.seekTo(0)
+        videoView.start()
     }
 
     private fun moveToNextWord() {
