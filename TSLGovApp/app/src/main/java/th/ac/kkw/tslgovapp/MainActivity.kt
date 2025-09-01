@@ -10,6 +10,10 @@ import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import th.ac.kkw.tslgovapp.CameraActivity
 import th.ac.kkw.tslgovapp.LearnActivity
+import th.ac.kkw.tslgovapp.model.Point3D
+import th.ac.kkw.tslgovapp.model.HandLandmarkData
+import th.ac.kkw.tslgovapp.model.SignWord
+import th.ac.kkw.tslgovapp.model.RecognitionResult
 
 
 class MainActivity : AppCompatActivity() {
@@ -27,6 +31,8 @@ class MainActivity : AppCompatActivity() {
         setupVideoPlayer()
         setupStartButton()
         setupLearnButton()
+
+        testModelClasses()
     }
 
     private fun initializeViews() {
@@ -121,4 +127,17 @@ class MainActivity : AppCompatActivity() {
             Log.e("MainActivity", "Error releasing video: ${e.message}")
         }
     }
+}
+
+
+// ใน เพิ่ม test function สำหรับ handlandmarkdata
+private fun testModelClasses() {
+    val testPoint = Point3D(0.5f, 0.5f, 0.0f)
+    val testLandmarks = HandLandmarkData(
+        landmarks = listOf(testPoint)
+    )
+    val testWord = SignWord("ช่วย", category = "โรงพยาบาล", templateLandmarks = testLandmarks)
+    val testResult = RecognitionResult("ช่วย", 0.85f, 0.15f)
+
+    Log.d("ModelTest", "✅ Models work: ${testWord.word}")
 }
