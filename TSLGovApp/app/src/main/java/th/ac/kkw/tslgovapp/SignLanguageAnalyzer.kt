@@ -1,254 +1,164 @@
-// SignLanguageAnalyzer.kt - Complete file with all classes
-
 package th.ac.kkw.tslgovapp
 
-import android.graphics.*
-import android.util.Log
+import android.content.Context
+import android.graphics.Bitmap
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import java.nio.ByteBuffer
-import kotlin.math.*
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import th.ac.kkw.tslgovapp.model.HandLandmarkData
+import th.ac.kkw.tslgovapp.model.Point3D
+import android.util.Log
 
-class SignLanguageAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
+class SignLanguageAnalyzer(
+    private val context: Context,
+    private val videoProcessor: VideoProcessor, // VideoProcessor ที่มี Templates ถูกโหลดไว้แล้ว
+    private val onResult: (String) -> Unit
+) : ImageAnalysis.Analyzer {
 
-    // Government vocabulary organized by context
-    private val hospitalWords = listOf("เจ็บคอ", "ปวดหัว", "ช่วย")
-    private val policeWords = listOf("หาย", "บัตรประชาชน", "แจ้งความ")
-    private val trainWords = listOf("หนังสือเดินทาง", "เครื่องบิน", "ห้องน้ำ")
+    private var handLandmarker: HandLandmarker? = null
+    private var lastInferenceTime = 0L
+    private val TAG = "SignLanguageAnalyzer"
 
-    private var frameCount = 0
-    private var lastDetectionTime = 0L
-    private var wordIndex = 0
-    private var previousFrameBrightness = 0f
-    private var gestureBuffer = mutableListOf<Float>()
-    private val bufferSize = 3 // Reduced for faster response
+    private var consecutiveCount = 0
+    private var lastDetectedWord = ""
+    private val requiredConsecutiveDetections = 3
 
-    private val detectionCooldown = 1500L // Reduced to 1.5 seconds
-    private var isInitialized = false
+    init {
+        setupMediaPipe()
+    }
 
-    override fun analyze(imageProxy: ImageProxy) {
+    private fun setupMediaPipe() {
         try {
-            frameCount++
-            val currentTime = System.currentTimeMillis()
+            val baseOptions = BaseOptions.builder()
+                .setModelAssetPath("hand_landmarker.task")
+                .build()
 
-            // Process every frame for better sensitivity
-            if (frameCount % 2 != 0) {
-                imageProxy.close()
-                return
-            }
+            val options = HandLandmarker.HandLandmarkerOptions.builder()
+                .setBaseOptions(baseOptions)
+                .setRunningMode(RunningMode.LIVE_STREAM)
+                .setNumHands(1) // เริ่มต้นที่ 1 มือก่อนเพื่อความเสถียร
+                .setMinHandDetectionConfidence(0.5f)
+                .setMinTrackingConfidence(0.5f)
+                .setResultListener { result: HandLandmarkerResult, _: MPImage ->
+                    processResults(result)
+                }
+                .setErrorListener { error: RuntimeException ->
+                    Log.e(TAG, "MediaPipe error: ${error.message}")
+                }
+                .build()
 
-            // Convert to bitmap with proper handling
-            val bitmap = imageProxyToBitmapFixed(imageProxy)
-            if (bitmap == null) {
-                Log.w("TSL", "Failed to convert image to bitmap")
-                imageProxy.close()
-                return
-            }
-
-            // Analyze for gesture patterns
-            val gestureStrength = analyzeGesturePatternImproved(bitmap)
-
-            Log.d("TSL", "Frame $frameCount: Gesture strength = $gestureStrength")
-
-            // Add to gesture buffer
-            gestureBuffer.add(gestureStrength)
-            if (gestureBuffer.size > bufferSize) {
-                gestureBuffer.removeAt(0)
-            }
-
-            // Initialize baseline after a few frames
-            if (!isInitialized && frameCount > 10) {
-                isInitialized = true
-                Log.d("TSL", "Gesture detection initialized")
-            }
-
-            // Check for gesture detection with more sensitive thresholds
-            if (isInitialized && shouldDetectGesture(currentTime) && isSignificantGestureImproved()) {
-                lastDetectionTime = currentTime
-                val detectedWord = selectWord(gestureStrength)
-                onResult(detectedWord)
-                Log.d("TSL", "✅ DETECTED GESTURE: $detectedWord (strength: $gestureStrength)")
-            }
-
+            handLandmarker = HandLandmarker.createFromOptions(context, options)
         } catch (e: Exception) {
-            Log.e("SignLanguageAnalyzer", "Analysis failed", e)
+            Log.e(TAG, "Error setting up MediaPipe: ${e.message}")
+        }
+    }
+
+    private fun processResults(result: HandLandmarkerResult) {
+        if (result.landmarks().isNotEmpty()) {
+            val landmarks = result.landmarks().first()
+
+            val currentHandLandmarks = HandLandmarkData(
+                landmarks = landmarks.map { landmark ->
+                    Point3D(landmark.x(), landmark.y(), landmark.z())
+                }
+            )
+
+            // เรียกใช้ฟังก์ชัน recognizeGesture ที่ปรับปรุงใหม่
+            val detectedWord = recognizeGesture(currentHandLandmarks)
+
+            if (detectedWord != null) {
+                handleConsecutiveDetection(detectedWord)
+            } else {
+                resetConsecutiveCount()
+            }
+        } else {
+            resetConsecutiveCount()
+        }
+    }
+
+    /**
+     * ปรับปรุงฟังก์ชันนี้ให้เรียกใช้ VideoProcessor เพียงอย่างเดียว
+     * เพื่อทำการเปรียบเทียบกับ Template ทั้งหมด
+     */
+    private fun recognizeGesture(handLandmarks: HandLandmarkData): String? {
+        try {
+            // ตามเป้าหมายโครงการที่ต้องการความแม่นยำ ≥ 70% [cite: 178]
+            return videoProcessor.recognizeSign(handLandmarks, confidenceThreshold = 0.7f)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error recognizing gesture: ${e.message}")
+            return null
+        }
+    }
+
+    // ลบฟังก์ชัน recognizeOtherGestures และฟังก์ชันย่อย (isPointingToNeck, isPointingToHead, etc.) ทั้งหมดออกไป
+    // เนื่องจาก VideoProcessor จะทำหน้าที่นี้แทน
+
+    private fun handleConsecutiveDetection(word: String) {
+        if (word == lastDetectedWord) {
+            consecutiveCount++
+        } else {
+            consecutiveCount = 1
+            lastDetectedWord = word
+        }
+
+        if (consecutiveCount >= requiredConsecutiveDetections) {
+            onResult(word)
+            resetConsecutiveCount() // รีเซ็ตหลังจากส่งผลลัพธ์
+        }
+    }
+
+    private fun resetConsecutiveCount() {
+        consecutiveCount = 0
+        lastDetectedWord = ""
+    }
+
+    override fun analyze(image: ImageProxy) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastInferenceTime < 100) { // 10 FPS
+            image.close()
+            return
+        }
+        lastInferenceTime = currentTime
+
+        try {
+            val bitmap = image.toBitmap()
+            val mpImage = BitmapImageBuilder(bitmap).build()
+            handLandmarker?.detectAsync(mpImage, currentTime)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error analyzing frame: ${e.message}")
         } finally {
-            imageProxy.close()
+            image.close()
         }
     }
 
-    private fun imageProxyToBitmapFixed(imageProxy: ImageProxy): Bitmap? {
-        return try {
-            // Handle different image formats properly
-            when (imageProxy.format) {
-                android.graphics.ImageFormat.YUV_420_888 -> {
-                    // Convert YUV to RGB
-                    val yBuffer = imageProxy.planes[0].buffer
-                    val uBuffer = imageProxy.planes[1].buffer
-                    val vBuffer = imageProxy.planes[2].buffer
-
-                    val ySize = yBuffer.remaining()
-                    val uSize = uBuffer.remaining()
-                    val vSize = vBuffer.remaining()
-
-                    val nv21 = ByteArray(ySize + uSize + vSize)
-                    yBuffer.get(nv21, 0, ySize)
-                    vBuffer.get(nv21, ySize, vSize)
-                    uBuffer.get(nv21, ySize + vSize, uSize)
-
-                    val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
-                    val out = java.io.ByteArrayOutputStream()
-                    yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 100, out)
-                    val imageBytes = out.toByteArray()
-                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                }
-                else -> {
-                    // Fallback for other formats
-                    val buffer = imageProxy.planes[0].buffer
-                    val bytes = ByteArray(buffer.remaining())
-                    buffer.get(bytes)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("TSL", "Error converting image: ${e.message}")
-            null
-        }
-    }
-
-    private fun analyzeGesturePatternImproved(bitmap: Bitmap): Float {
-        // Simplified but more effective gesture analysis
-        val motionFactor = calculateMotionFactorImproved(bitmap)
-        val activityFactor = calculateActivityFactor(bitmap)
-
-        Log.d("TSL", "Motion: $motionFactor, Activity: $activityFactor")
-
-        // Combine factors with emphasis on motion
-        return (motionFactor * 0.7f + activityFactor * 0.3f)
-    }
-
-    private fun calculateMotionFactorImproved(bitmap: Bitmap): Float {
-        val currentBrightness = calculateAverageBrightnessOptimized(bitmap)
-        val motionStrength = abs(currentBrightness - previousFrameBrightness)
-        previousFrameBrightness = currentBrightness
-
-        // More sensitive motion detection
-        val normalizedMotion = minOf(motionStrength * 20f, 1.0f)
-
-        Log.d("TSL", "Current brightness: $currentBrightness, Motion strength: $motionStrength, Normalized: $normalizedMotion")
-
-        return normalizedMotion
-    }
-
-    private fun calculateActivityFactor(bitmap: Bitmap): Float {
-        val width = bitmap.width
-        val height = bitmap.height
-
-        // Focus on center area where hands are likely to be
-        val centerX = width / 2
-        val centerY = height / 2
-        val sampleRadius = minOf(width, height) / 4
-
-        var totalVariance = 0f
-        var sampleCount = 0
-
-        // Sample in a grid pattern in the center area
-        for (x in (centerX - sampleRadius) until (centerX + sampleRadius) step 20) {
-            for (y in (centerY - sampleRadius) until (centerY + sampleRadius) step 20) {
-                if (x >= 0 && x < width-1 && y >= 0 && y < height-1) {
-                    val pixel1 = bitmap.getPixel(x, y)
-                    val pixel2 = bitmap.getPixel(x+1, y)
-
-                    val brightness1 = getPixelBrightness(pixel1)
-                    val brightness2 = getPixelBrightness(pixel2)
-
-                    val variance = abs(brightness1 - brightness2)
-                    totalVariance += variance
-                    sampleCount++
-                }
-            }
-        }
-
-        val avgVariance = if (sampleCount > 0) totalVariance / sampleCount else 0f
-        return minOf(avgVariance * 3f, 1.0f)
-    }
-
-    private fun calculateAverageBrightnessOptimized(bitmap: Bitmap): Float {
-        val width = bitmap.width
-        val height = bitmap.height
-        var totalBrightness = 0f
-        var pixelCount = 0
-
-        // Sample fewer pixels but more strategically
-        val stepSize = 15
-        for (x in stepSize until width-stepSize step stepSize) {
-            for (y in stepSize until height-stepSize step stepSize) {
-                val pixel = bitmap.getPixel(x, y)
-                totalBrightness += getPixelBrightness(pixel)
-                pixelCount++
-            }
-        }
-
-        return if (pixelCount > 0) totalBrightness / pixelCount else 0f
-    }
-
-    private fun getPixelBrightness(pixel: Int): Float {
-        val r = Color.red(pixel)
-        val g = Color.green(pixel)
-        val b = Color.blue(pixel)
-        return (0.299f * r + 0.587f * g + 0.114f * b) / 255f
-    }
-
-    private fun shouldDetectGesture(currentTime: Long): Boolean {
-        return currentTime - lastDetectionTime >= detectionCooldown
-    }
-
-    private fun isSignificantGestureImproved(): Boolean {
-        if (gestureBuffer.size < bufferSize) return false
-
-        val avgGestureStrength = gestureBuffer.average()
-        val maxGestureStrength = gestureBuffer.maxOrNull() ?: 0f
-
-        // More sensitive thresholds
-        val isSignificant = avgGestureStrength > 0.15f || maxGestureStrength > 0.25f
-
-        Log.d("TSL", "Gesture check - Avg: $avgGestureStrength, Max: $maxGestureStrength, Significant: $isSignificant")
-
-        return isSignificant
-    }
-
-    private fun selectWord(gestureStrength: Float): String {
-        // Use gesture characteristics to influence word selection
-        val category = when {
-            gestureStrength > 0.5f -> hospitalWords // High activity = urgent (hospital)
-            gestureStrength > 0.3f -> policeWords   // Medium activity = official (police)
-            else -> trainWords                       // Lower activity = travel (train)
-        }
-
-        // Cycle through words in selected category
-        val categoryIndex = wordIndex % category.size
-        wordIndex++
-
-        return category[categoryIndex]
+    fun cleanup() {
+        handLandmarker?.close()
     }
 }
 
-// Debug version for testing - shows detection status
+// คลาส Debug ไม่ต้องแก้ไข
 class DebugSignLanguageAnalyzer(
+    private val context: Context,
+    private val videoProcessor: VideoProcessor,
     private val onResult: (String) -> Unit,
     private val onDebug: (String) -> Unit
 ) : ImageAnalysis.Analyzer {
 
-    private val analyzer = SignLanguageAnalyzer(onResult)
-    private var debugFrameCount = 0
+    private val analyzer = SignLanguageAnalyzer(context, videoProcessor) { result ->
+        onDebug("🔍 Debug - Detected: $result")
+        onResult(result)
+    }
 
     override fun analyze(imageProxy: ImageProxy) {
-        debugFrameCount++
-
-        if (debugFrameCount % 30 == 0) { // Every 30 frames (about 1 second)
-            onDebug("Processing frame $debugFrameCount...")
-        }
-
         analyzer.analyze(imageProxy)
+    }
+
+    fun cleanup() {
+        analyzer.cleanup()
     }
 }

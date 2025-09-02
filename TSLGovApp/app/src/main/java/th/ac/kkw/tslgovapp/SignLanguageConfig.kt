@@ -1,5 +1,6 @@
 package th.ac.kkw.tslgovapp
-
+import th.ac.kkw.tslgovapp.model.Point3D
+import th.ac.kkw.tslgovapp.model.HandLandmarkData
 data class SignWord(
     val word: String,
     val meaning: String,
@@ -12,6 +13,29 @@ data class SignWord(
 
 object SignLanguageConfig {
 
+    // สร้างข้อมูลเทมเพลตสำหรับท่าทาง "ช่วย" (แทนที่วิดีโอ)
+    // นี่คือตัวอย่างข้อมูลพิกัด (landmarks) ที่สมมติขึ้นสำหรับท่า "ช่วย"
+    // ในความเป็นจริง ข้อมูลนี้จะต้องถูกดึงออกมาจากไฟล์วิดีโอ help_main.mp4
+    val HELP_SIGN_TEMPLATE = HandLandmarkData(
+        landmarks = listOf(
+            Point3D(0.5f, 0.5f, 0.0f), // ข้อมือ (Wrist)
+            Point3D(0.4f, 0.6f, -0.1f), // โคนนิ้วโป้ง (Thumb CMC)
+            Point3D(0.35f, 0.65f, -0.2f), // ข้อนิ้วโป้ง (Thumb MCP)
+            Point3D(0.3f, 0.7f, -0.3f), // ปลายนิ้วโป้ง (Thumb IP)
+            Point3D(0.45f, 0.55f, 0.0f), // โคนนิ้วชี้ (Index Finger MCP)
+            Point3D(0.4f, 0.45f, -0.1f), // ข้อนิ้วชี้ (Index Finger PIP)
+            Point3D(0.35f, 0.35f, -0.2f), // ปลายนิ้วชี้ (Index Finger DIP)
+            Point3D(0.5f, 0.5f, 0.0f), // โคนนิ้วกลาง (Middle Finger MCP)
+            Point3D(0.5f, 0.4f, -0.1f), // ข้อนิ้วกลาง (Middle Finger PIP)
+            Point3D(0.5f, 0.3f, -0.2f), // ปลายนิ้วกลาง (Middle Finger DIP)
+            Point3D(0.6f, 0.55f, 0.0f), // โคนนิ้วนาง (Ring Finger MCP)
+            Point3D(0.65f, 0.45f, -0.1f), // ข้อนิ้วนาง (Ring Finger PIP)
+            Point3D(0.7f, 0.35f, -0.2f), // ปลายนิ้วนาง (Ring Finger DIP)
+            Point3D(0.7f, 0.5f, 0.0f), // โคนนิ้วก้อย (Pinky MCP)
+            Point3D(0.75f, 0.4f, -0.1f), // ข้อนิ้วก้อย (Pinky PIP)
+            Point3D(0.8f, 0.3f, -0.2f)  // ปลายนิ้วก้อย (Pinky DIP)
+        )
+    )
     // รายการคำศัพท์ทั้งหมด เรียงตามความง่าย-ยาก
     val ALL_WORDS = listOf(
         // Phase 1: คำง่าย (เริ่มทดสอบจากนี้)

@@ -25,11 +25,16 @@ import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import th.ac.kkw.tslgovapp.VideoProcessor
 
 class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -39,7 +44,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var btnStartStop: Button
     private lateinit var btnRepeatSound: Button
     private lateinit var btnBack: Button
-    private lateinit var btnSwitchCamera: Button // NEW: Camera switch button
+    private lateinit var btnSwitchCamera: Button
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalyzer: ImageAnalysis? = null
@@ -52,9 +57,11 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var lastRecognizedWord = ""
     private var currentVideoFile: File? = null
 
-    // NEW: Camera selector tracking
     private var isFrontCamera = true
     private var currentCameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+    // เพิ่ม VideoProcessor instance
+    private lateinit var videoProcessor: VideoProcessor
 
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 10
@@ -70,20 +77,58 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val TAG = "CameraActivity"
     }
 
+    /**
+     * โหลด Template ของคำศัพท์ภาษามือทั้งหมดที่กำหนดไว้ในโครงการ
+     * การทำงานทั้งหมดจะอยู่ใน Background Thread เพื่อป้องกันไม่ให้แอปค้าง
+     */
+    private fun loadSignLanguageTemplates() {
+        // ใช้ lifecycleScope.launch(Dispatchers.IO) เพื่อทำงานใน Background Thread
+        lifecycleScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "Starting to load sign language templates...")
+
+            // หมวดโรงพยาบาล [cite: 257]
+           /* videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.sore_throat_1}")))
+            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.headache_1}"))) */
+            videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.help_test3}")))
+
+            // หมวดสถานีตำรวจ [cite: 261]
+           // videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost_1}")))
+          //  videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card_1}")))
+           // videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report_1}")))
+
+            // หมวดสนามบิน/ขนส่ง [cite: 265]
+           /* videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport_1}")))
+            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane_1}")))
+            videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(Uri.parse("android.resource://$packageName/${R.raw.toilet_1}"))) */
+
+            // เมื่อโหลดเสร็จ สามารถแจ้งเตือนผู้ใช้ได้ (ต้องกลับมาที่ Main Thread
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@CameraActivity, "ระบบพร้อมใช้งาน", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "All templates loaded successfully.")
+            }
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
 
+        // 1. สร้าง instance ของ VideoProcessor
+        videoProcessor = VideoProcessor(this)
+
+        // 2. เรียกฟังก์ชันเพื่อโหลด Template ทั้งหมดใน Background Thread
+        loadSignLanguageTemplates()
+
+
+
         initViews()
         setupClickListeners()
 
-        // Initialize Text-to-Speech
         textToSpeech = TextToSpeech(this, this)
-
-        // Initialize Camera Executor
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Check camera permissions
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -98,7 +143,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnStartStop = findViewById(R.id.btn_start_stop)
         btnRepeatSound = findViewById(R.id.btn_repeat_sound)
         btnBack = findViewById(R.id.btn_back)
-        btnSwitchCamera = findViewById(R.id.btn_switch_camera) // NEW: Initialize switch button
+        btnSwitchCamera = findViewById(R.id.btn_switch_camera)
     }
 
     private fun setupClickListeners() {
@@ -118,12 +163,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             finish()
         }
 
-        // NEW: Camera switch button click listener
         btnSwitchCamera.setOnClickListener {
             switchCamera()
         }
 
-        // Add long press on preview for testing
         previewView.setOnLongClickListener {
             if (isDetecting) {
                 testGestureDetection()
@@ -135,15 +178,12 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // NEW: Camera switching function
     private fun switchCamera() {
-        // Stop current detection if running
         if (isDetecting) {
             Toast.makeText(this, "กรุณาหยุดการตรวจจับก่อนเปลี่ยนกล้อง", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Toggle camera selector
         isFrontCamera = !isFrontCamera
         currentCameraSelector = if (isFrontCamera) {
             CameraSelector.DEFAULT_FRONT_CAMERA
@@ -151,20 +191,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             CameraSelector.DEFAULT_BACK_CAMERA
         }
 
-        // Update button text
         btnSwitchCamera.text = if (isFrontCamera) "กล้องหลัง" else "กล้องหน้า"
-
-        // Show toast message
         val cameraType = if (isFrontCamera) "กล้องหน้า" else "กล้องหลัง"
         Toast.makeText(this, "เปลี่ยนเป็น$cameraType", Toast.LENGTH_SHORT).show()
-
-        // Restart camera with new selector
         startCamera()
-
         Log.d(TAG, "Switched to ${if (isFrontCamera) "front" else "back"} camera")
     }
 
-    // NEW: Check if device has both cameras
     private fun hasBothCameras(): Boolean {
         val cameraProvider = this.cameraProvider ?: return false
         return try {
@@ -200,8 +233,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         cameraProviderFuture.addListener({
             try {
                 cameraProvider = cameraProviderFuture.get()
-
-                // NEW: Update switch button visibility based on camera availability
                 if (hasBothCameras()) {
                     btnSwitchCamera.visibility = Button.VISIBLE
                     btnSwitchCamera.text = if (isFrontCamera) "กล้องหลัง" else "กล้องหน้า"
@@ -209,14 +240,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     btnSwitchCamera.visibility = Button.GONE
                 }
 
-                // Create Preview
                 val preview = Preview.Builder()
                     .build()
                     .also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                // Create Image Analyzer
+                // แก้ไขตรงนี้เพื่อส่ง VideoProcessor ไปให้ SignLanguageAnalyzer
                 imageAnalyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setTargetRotation(previewView.display.rotation)
@@ -225,21 +255,22 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         analysis.setAnalyzer(
                             cameraExecutor,
                             DebugSignLanguageAnalyzer(
+                                context = this,
+                                videoProcessor = videoProcessor, // ส่ง instance ไป
                                 onResult = { result: String ->
                                     runOnUiThread {
-                                        // updateResult(result) - commented out for testing
+                                        updateResult(result)
                                     }
                                 },
                                 onDebug = { debugInfo: String ->
                                     runOnUiThread {
-                                        Log.d("CameraActivity", debugInfo)
+                                        Log.d(TAG, debugInfo)
                                     }
                                 }
                             )
                         )
                     }
 
-                // Create VideoCapture
                 val recorder = Recorder.Builder()
                     .setQualitySelector(
                         QualitySelector.from(
@@ -250,13 +281,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
 
-                // NEW: Use current camera selector instead of fixed front camera
                 val cameraSelector = currentCameraSelector
 
-                // Unbind use cases before rebinding
                 cameraProvider?.unbindAll()
 
-                // Bind use cases to camera
                 cameraProvider?.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer, videoCapture
                 )
@@ -273,7 +301,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun toggleDetectionAndRecording() {
         if (isDetecting) {
-            // Stop detection and recording
             stopRecording()
             isDetecting = false
             btnStartStop.text = "เริ่มตรวจจับ"
@@ -282,15 +309,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             largeResultText.text = "ยังไม่มีการตรวจจับ"
             largeResultText.setBackgroundColor(Color.TRANSPARENT)
 
-            // Update repeat button text
             btnRepeatSound.text = "เปิดวิดีโอ"
-
-            // NEW: Enable camera switch when not detecting
             btnSwitchCamera.isEnabled = true
-
             Log.d(TAG, "Detection and recording stopped")
         } else {
-            // Start detection and recording
             startRecording()
             isDetecting = true
             btnStartStop.text = "หยุดตรวจจับ"
@@ -298,30 +320,22 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             resultText.text = "กำลังตรวจจับภาษามือ..."
             largeResultText.text = "พร้อมรับภาษามือ"
 
-            // Update repeat button text
             btnRepeatSound.text = "เล่นซ้ำ"
-
-            // NEW: Disable camera switch during detection/recording
             btnSwitchCamera.isEnabled = false
-
             Log.d(TAG, "Detection and recording started")
         }
     }
 
-    // FIXED: Create video file in accessible Downloads directory
     private fun createVideoFile(name: String): File {
-        // NEW: Include camera type in filename
         val cameraType = if (isFrontCamera) "front" else "back"
         val fileName = "TSL_${cameraType}_${name}.mp4"
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10+ - Use Downloads folder
             File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                 fileName
             )
         } else {
-            // Android 9 and below - Use Movies folder
             val moviesDir = File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
                 "TSL_SignLanguage"
@@ -336,10 +350,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         btnStartStop.isEnabled = false
 
-        val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
-            .format(System.currentTimeMillis())
-
-        // FIXED: Use accessible Downloads directory instead of app private directory
+        val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())
         val videoFile = createVideoFile(name)
         currentVideoFile = videoFile
 
@@ -363,19 +374,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     is VideoRecordEvent.Finalize -> {
                         if (!recordEvent.hasError()) {
-                            val savedUri = recordEvent.outputResults.outputUri
-
-                            // Show accessible path information
-                            val accessPath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                "Downloads folder"
-                            } else {
-                                "Movies/TSL_SignLanguage folder"
-                            }
-
-                            val msg = "บันทึกวิดีโอสำเร็จ!\nดูได้ใน: $accessPath\nชื่อไฟล์: ${videoFile.name}"
+                            val msg = "บันทึกวิดีโอสำเร็จ!\nดูได้ใน: ${videoFile.parentFile?.name}\nชื่อไฟล์: ${videoFile.name}"
                             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                             resultText.text = "บันทึกแล้ว: ${videoFile.name}"
-
                             Log.d(TAG, "Video saved to: ${videoFile.absolutePath}")
                         } else {
                             recording?.close()
@@ -394,7 +395,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         recording = null
     }
 
-    // Rest of your existing methods remain the same...
     private fun openVideo() {
         currentVideoFile?.let { file ->
             if (file.exists()) {
@@ -408,12 +408,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     } else {
                         Uri.fromFile(file)
                     }
-
                     val intent = Intent(Intent.ACTION_VIEW).apply {
                         setDataAndType(uri, "video/mp4")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                     }
-
                     if (intent.resolveActivity(packageManager) != null) {
                         startActivity(intent)
                         Toast.makeText(this, "เปิดวิดีโอ: ${file.name}", Toast.LENGTH_SHORT).show()
@@ -450,7 +448,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
             }
-
             startActivity(intent)
             Toast.makeText(this, "เปิด File Manager แล้ว", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -473,20 +470,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             lastRecognizedWord = result
             resultText.text = "ตรวจพบ: $result"
             largeResultText.text = result
-
-            // Play sound immediately
             textToSpeech?.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
-
-            // Visual feedback
             largeResultText.setBackgroundColor(
                 ContextCompat.getColor(this, android.R.color.holo_green_light)
             )
-
-            // Reset background after 1 second using Handler
             Handler(Looper.getMainLooper()).postDelayed({
                 largeResultText.setBackgroundColor(Color.TRANSPARENT)
             }, 1000)
-
             Log.d(TAG, "Sign detected and announced: $result")
         }
     }
@@ -511,13 +501,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val result = textToSpeech?.setLanguage(Locale("th", "TH"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.e(TAG, "ไม่รองรับภาษาไทย")
-                // Use English instead
                 textToSpeech?.setLanguage(Locale.ENGLISH)
             }
-
-            // Set voice settings for clarity
-            textToSpeech?.setSpeechRate(0.8f) // Speak slower for clarity
-            textToSpeech?.setPitch(1.0f) // Normal pitch
+            textToSpeech?.setSpeechRate(0.8f)
+            textToSpeech?.setPitch(1.0f)
         } else {
             Log.e(TAG, "เริ่มต้น TextToSpeech ไม่สำเร็จ")
         }
