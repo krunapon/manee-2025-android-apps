@@ -27,7 +27,8 @@ class SignLanguageAnalyzer(
 
     private var consecutiveCount = 0
     private var lastDetectedWord = ""
-    private val requiredConsecutiveDetections = 3
+    private var lastAnnouncedWord = "" // ตัวแปรสำหรับจำคำที่พูดไปแล้ว
+    private val requiredConsecutiveDetections = 5
 
     init {
         setupMediaPipe()
@@ -88,7 +89,7 @@ class SignLanguageAnalyzer(
             )
 
             // นำค่า confidence มาตัดสินใจ
-            val confidenceThreshold = 0.5f
+            val confidenceThreshold = 0.6f
             if (recognitionResult.confidence >= confidenceThreshold) {
                 handleConsecutiveDetection(recognitionResult.word)
             } else {
@@ -124,17 +125,20 @@ class SignLanguageAnalyzer(
         } else {
             consecutiveCount = 1
             lastDetectedWord = word
+            lastAnnouncedWord = "" // สำคัญมาก : รีเซ็ตเพื่อให้คำใหม่พูดได้
         }
 
-        if (consecutiveCount >= requiredConsecutiveDetections) {
+        if (consecutiveCount >= requiredConsecutiveDetections && word != lastAnnouncedWord ) {
             onResult(word)
             resetConsecutiveCount() // รีเซ็ตหลังจากส่งผลลัพธ์
+            lastAnnouncedWord = word // "จำไว้" ว่าเราเพิ่งพูดคำนี้ไป
         }
     }
 
     private fun resetConsecutiveCount() {
         consecutiveCount = 0
         lastDetectedWord = ""
+        lastAnnouncedWord = "" // ล้างคำ "หน่วยความจำ" ด้วย
     }
 
     override fun analyze(image: ImageProxy) {
