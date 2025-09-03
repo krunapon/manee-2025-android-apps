@@ -13,6 +13,7 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
+import th.ac.kkw.tslgovapp.model.RecognitionResult
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -151,7 +152,7 @@ class VideoProcessor(private val context: Context) {
      * จดจำท่าทางโดยเปรียบเทียบ Landmark ปัจจุบันกับ Template ทั้งหมดที่มี
      * @return ชื่อคำศัพท์ที่ตรงที่สุด หรือ null ถ้าไม่ตรงกับคำใดเลย
      */
-    fun recognizeSign(currentGestureLandmarks: HandLandmarkData, confidenceThreshold: Float = 0.7f): String? {
+    fun recognizeSign(currentGestureLandmarks: HandLandmarkData): RecognitionResult? {
         if (signTemplates.isEmpty()) {
             return null
         }
@@ -167,23 +168,35 @@ class VideoProcessor(private val context: Context) {
             }
         }
 
-        // แปลงค่า distance เป็น % ความเหมือน (ค่าประมาณ)
-        val similarity = (1.0f - minDistance.coerceAtMost(1.0f))
+        // ถ้าเจอคำที่ใกล้เคียงที่สุด
+        if (bestMatchLabel != null) {
+            // แปลงค่า distance เป็น confidence (ค่าความเหมือน)
+            val confidence = (1.0f - minDistance.coerceAtMost(1.0f))
 
-        Log.d("VideoProcessor", "Best match: $bestMatchLabel with distance $minDistance (Similarity: ${similarity * 100}%)")
+            Log.d("VideoProcessor", "Match found: $bestMatchLabel, Distance: $minDistance, Confidence: ${confidence * 100}%")
 
-        return if (similarity >= confidenceThreshold) {
-            bestMatchLabel
-        } else {
-            null
+            // สร้างและคืนค่า Object RecognitionResult ตามที่คุณออกแบบไว้
+            return RecognitionResult(
+                word = bestMatchLabel,
+                confidence = confidence,
+                distance = minDistance
+            )
         }
+
+        return null // ถ้าไม่เจอคำที่ตรงกันเลย
     }
 
+    // In VideoProcessor.kt
+
     /**
-     * คำนวณ Euclidean Distance ระหว่าง Landmark สองชุด
+     * คำนวณ Euclidean Distance เฉลี่ยต่อ Landmark (RMSE) ระหว่าง Landmark สองชุด
      */
     private fun calculateEuclideanDistance(current: HandLandmarkData, template: HandLandmarkData): Float {
         if (current.landmarks.size != template.landmarks.size) return Float.MAX_VALUE
+
+        val numLandmarks = current.landmarks.size
+        if (numLandmarks == 0) return Float.MAX_VALUE // ป้องกันการหารด้วยศูนย์
+
         var sumOfSquaredDistances = 0.0f
         for (i in current.landmarks.indices) {
             val dx = current.landmarks[i].x - template.landmarks[i].x
@@ -191,7 +204,11 @@ class VideoProcessor(private val context: Context) {
             val dz = current.landmarks[i].z - template.landmarks[i].z
             sumOfSquaredDistances += dx * dx + dy * dy + dz * dz
         }
-        return sqrt(sumOfSquaredDistances)
+
+        // *** นี่คือส่วนที่แก้ไข ***
+        // เราจะหาค่าเฉลี่ยก่อนถอดสแควร์รูท
+        val meanSquaredError = sumOfSquaredDistances / numLandmarks
+        return sqrt(meanSquaredError) // คืนค่าเป็น Root Mean Square Error
     }
 
     // ========== สิ้นสุดโค้ดที่เพิ่มเข้ามาใหม่ ==========

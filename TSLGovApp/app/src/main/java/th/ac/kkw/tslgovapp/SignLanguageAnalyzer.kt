@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
+import th.ac.kkw.tslgovapp.model.RecognitionResult
 import android.util.Log
 
 class SignLanguageAnalyzer(
@@ -61,24 +62,41 @@ class SignLanguageAnalyzer(
     private fun processResults(result: HandLandmarkerResult) {
         // เพิ่ม Log บรรทัดนี้เข้าไป
         Log.d(TAG, "processResults called. Landmark count: ${result.landmarks().size}")
-        if (result.landmarks().isNotEmpty()) {
-            val landmarks = result.landmarks().first()
+        if (result.landmarks().isEmpty()) {
+            resetConsecutiveCount()
+            return
+        }
 
-            val currentHandLandmarks = HandLandmarkData(
-                landmarks = landmarks.map { landmark ->
-                    Point3D(landmark.x(), landmark.y(), landmark.z())
-                }
+        val landmarks = result.landmarks().first()
+        val currentHandLandmarks = HandLandmarkData(
+            landmarks = landmarks.map { landmark ->
+                Point3D(landmark.x(), landmark.y(), landmark.z())
+            }
+        )
+
+        // เรียกฟังก์ชัน recognizeGesture เพื่อเอา RecognitionResult? มา
+        val recognitionResult = recognizeGesture(currentHandLandmarks)
+
+        // ตรวจสอบว่าผลลัพธ์ที่ได้ ไม่ใช่ค่าว่าง
+        if (recognitionResult != null) {
+            // *** แสดงผลลัพธ์การเปรียบเทียบทุกครั้งใน Logcat ตามที่คุณต้องการ ***
+            Log.i(
+                TAG,
+                "Recognition Update -> Word: ${recognitionResult.word}, " +
+                        "Confidence: ${"%.2f".format(recognitionResult.confidence * 100)}%, " +
+                        "Distance: ${"%.4f".format(recognitionResult.distance)}"
             )
 
-            // เรียกใช้ฟังก์ชัน recognizeGesture ที่ปรับปรุงใหม่
-            val detectedWord = recognizeGesture(currentHandLandmarks)
-
-            if (detectedWord != null) {
-                handleConsecutiveDetection(detectedWord)
+            // นำค่า confidence มาตัดสินใจ
+            val confidenceThreshold = 0.5f
+            if (recognitionResult.confidence >= confidenceThreshold) {
+                handleConsecutiveDetection(recognitionResult.word)
             } else {
                 resetConsecutiveCount()
             }
+
         } else {
+            // กรณีที่ recognizeSign คืนค่า null (ไม่มี template)
             resetConsecutiveCount()
         }
     }
@@ -87,10 +105,10 @@ class SignLanguageAnalyzer(
      * ปรับปรุงฟังก์ชันนี้ให้เรียกใช้ VideoProcessor เพียงอย่างเดียว
      * เพื่อทำการเปรียบเทียบกับ Template ทั้งหมด
      */
-    private fun recognizeGesture(handLandmarks: HandLandmarkData): String? {
+    private fun recognizeGesture(handLandmarks: HandLandmarkData): RecognitionResult?  {
         try {
             // ตามเป้าหมายโครงการที่ต้องการความแม่นยำ ≥ 70% [cite: 178]
-            return videoProcessor.recognizeSign(handLandmarks, confidenceThreshold = 0.3f)
+            return videoProcessor.recognizeSign(handLandmarks)
         } catch (e: Exception) {
             Log.e(TAG, "Error recognizing gesture: ${e.message}")
             return null
