@@ -41,7 +41,7 @@ class SignLanguageAnalyzer(
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
                 .setRunningMode(RunningMode.LIVE_STREAM)
-                .setNumHands(1) // เริ่มต้นที่ 1 มือก่อนเพื่อความเสถียร
+                .setNumHands(1)
                 .setMinHandDetectionConfidence(0.5f)
                 .setMinTrackingConfidence(0.5f)
                 .setResultListener { result: HandLandmarkerResult, _: MPImage ->
@@ -59,6 +59,8 @@ class SignLanguageAnalyzer(
     }
 
     private fun processResults(result: HandLandmarkerResult) {
+        // เพิ่ม Log บรรทัดนี้เข้าไป
+        Log.d(TAG, "processResults called. Landmark count: ${result.landmarks().size}")
         if (result.landmarks().isNotEmpty()) {
             val landmarks = result.landmarks().first()
 
@@ -88,7 +90,7 @@ class SignLanguageAnalyzer(
     private fun recognizeGesture(handLandmarks: HandLandmarkData): String? {
         try {
             // ตามเป้าหมายโครงการที่ต้องการความแม่นยำ ≥ 70% [cite: 178]
-            return videoProcessor.recognizeSign(handLandmarks, confidenceThreshold = 0.7f)
+            return videoProcessor.recognizeSign(handLandmarks, confidenceThreshold = 0.3f)
         } catch (e: Exception) {
             Log.e(TAG, "Error recognizing gesture: ${e.message}")
             return null

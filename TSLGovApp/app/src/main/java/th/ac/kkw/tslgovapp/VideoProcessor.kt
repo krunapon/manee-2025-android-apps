@@ -19,8 +19,15 @@ import java.io.InputStream
 
 class VideoProcessor(private val context: Context) {
 
-    private var handLandmarker: HandLandmarker? = null
     private val signTemplates = mutableMapOf<String, HandLandmarkData>()
+
+    companion object {
+        private const val TAG = "VideoProcessor"
+        private const val MODEL_FILE = "hand_landmarker.task" // ✅ Correct path
+    }
+
+    private var handLandmarker: HandLandmarker? = null
+    private var isInitialized = false
 
     init {
         setupMediaPipe()
@@ -29,19 +36,24 @@ class VideoProcessor(private val context: Context) {
     private fun setupMediaPipe() {
         try {
             val baseOptions = BaseOptions.builder()
-                .setModelAssetPath("hand_landmarker.task")
+                .setModelAssetPath(MODEL_FILE)
                 .build()
 
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
+                .setNumHands(2)
+                .setMinHandDetectionConfidence(0.5f)
+                .setMinHandPresenceConfidence(0.5f)
+                .setMinTrackingConfidence(0.5f)
                 .setRunningMode(RunningMode.IMAGE) // Change to IMAGE mode for frame processing
-                .setNumHands(1)
                 .build()
 
             handLandmarker = HandLandmarker.createFromOptions(context, options)
+            isInitialized = true
             Log.d("VideoProcessor", "MediaPipe HandLandmarker initialized.")
         } catch (e: Exception) {
             Log.e("VideoProcessor", "Error setting up MediaPipe", e)
+            isInitialized = false
         }
     }
 
