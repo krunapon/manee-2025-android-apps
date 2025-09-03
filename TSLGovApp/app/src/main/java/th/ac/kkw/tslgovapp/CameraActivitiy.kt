@@ -59,6 +59,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var currentCameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private lateinit var videoProcessor: VideoProcessor
 
+    private var isSpeakingCooldown = false // Flag บอกว่ากำลังอยู่ในช่วง Cooldown หรือไม่
+    private val cooldownHandler = Handler(Looper.getMainLooper()) // ตัวหน่วงเวลา
+    private val SPEAKING_COOLDOWN_DELAY = 2500L // ระยะเวลา Cooldown (2.5 วินาที) ลองปรับค่านี้ได้
+
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = mutableListOf(
@@ -349,11 +353,24 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun updateResult(result: String) {
-        if (isDetecting && result.isNotEmpty()) {
+        if (isSpeakingCooldown) {
+            // ถ้ายังอยู่ในช่วง Cooldown ให้เมินผลลัพธ์นี้ไปเลย
+            return
+        }
+
+        if (isDetecting && result.isNotEmpty() && result != lastRecognizedWord) {
             lastRecognizedWord = result
             resultText.text = "ตรวจพบ: $result"
             largeResultText.text = result
             textToSpeech?.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
+
+            // *** เริ่มนับ Cooldown ทันทีหลังจากสั่งพูด ***
+            isSpeakingCooldown = true
+            cooldownHandler.postDelayed({
+                isSpeakingCooldown = false
+                lastRecognizedWord = "" // รีเซ็ตคำล่าสุดหลัง Cooldown เพื่อให้พูดคำเดิมซ้ำได้ถ้าต้องการ
+            }, SPEAKING_COOLDOWN_DELAY)
+
             largeResultText.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             Handler(Looper.getMainLooper()).postDelayed({ largeResultText.setBackgroundColor(Color.TRANSPARENT) }, 1000)
         }
@@ -389,5 +406,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         recording?.stop()
+        cooldownHandler.removeCallbacksAndMessages(null)
     }
 }

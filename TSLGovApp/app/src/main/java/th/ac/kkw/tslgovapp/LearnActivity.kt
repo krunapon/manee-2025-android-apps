@@ -63,7 +63,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "ช่วย",
             meaning = "ช่วย",
-            videoFileName = "help.mp4",
+            videoFileName = "help_main.mp4",
             category = "โรงพยาบาล"
         ),
         SignWord(
