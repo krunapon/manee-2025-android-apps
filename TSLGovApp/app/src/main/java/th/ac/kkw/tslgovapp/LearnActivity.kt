@@ -2,6 +2,7 @@ package th.ac.kkw.tslgovapp
 
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.widget.Button
@@ -10,7 +11,7 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import java.util.*
-import kotlin.math.sign
+import android.os.Looper
 
 class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -25,7 +26,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private var currentWordIndex = 0
     private var isTtsReady = false
-    private var shouldAutoSpeak = false
+
 
     // ข้อมูลคำศัพท์ภาษามือตามที่ระบุในเอกสาร
     private val signLanguageWords = listOf(
@@ -93,7 +94,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         initializeViews()
         initializeTextToSpeech()
         setupVideoView()
-        loadCurrentWord()
+
 
         btnTranslate.setOnClickListener {
             translateCurrentWord()
@@ -127,9 +128,11 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun setupVideoView() {
-        videoView.setOnCompletionListener { mediaPlayer ->
+        videoView.setOnPreparedListener { mediaPlayer ->
             // เล่นวิดีโอซ้ำ
             mediaPlayer.isLooping = true
+            autoSpeakCurrentWord()
+            videoView.start()
         }
 
         videoView.setOnErrorListener { _, what, extra ->
@@ -159,12 +162,10 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (videoResourceId != 0) {
                 val uri = Uri.parse("android.resource://$packageName/$videoResourceId")
                 videoView.setVideoURI(uri)
-                videoView.start()
             } else {
                 // ถ้าไม่พบไฟล์วิดีโอ ใช้วิดีโอ demo
                 loadDemoVideo()
             }
-            autoSpeakCurrentWord()
         } catch (e: Exception) {
             Log.e("LearnActivity", "Error loading video", e)
             loadDemoVideo()
@@ -179,7 +180,6 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (demoVideoId != 0) {
             val uri = Uri.parse("android.resource://$packageName/$demoVideoId")
             videoView.setVideoURI(uri)
-            videoView.start()
         }
     }
 
@@ -187,10 +187,17 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val currentWord = signLanguageWords[currentWordIndex]
         // พูดเสียงภาษาไทย
         //speakText(currentWord.word + " หมายถึง " + currentWord.meaning)
+        Log.d("TTS_DEBUG", "autoSpeakCurrentWord: Called for word '${currentWord.word}'. isTtsReady = $isTtsReady")
         if (isTtsReady) {
-            speakText(currentWord.word)
-        } else {
-            shouldAutoSpeak = true
+            // *** เพิ่มการหน่วงเวลาเล็กน้อย (250ms) ก่อนสั่งพูด ***
+            // เพื่อให้แน่ใจว่า TTS Engine โหลดภาษาไทยพร้อมใช้งานจริงๆ
+            // แก้ปัญหา Race Condition ของ TTS Initialization
+            Log.d("TTS_DEBUG", "autoSpeakCurrentWord: Posting Handler with 300ms delay...")
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d("TTS_DEBUG", "autoSpeakCurrentWord: Handler delay is over. Calling speakText().")
+                speakText(currentWord.word)
+            }, 300) // หน่วงเวลา 0.3
+
         }
     }
 
@@ -215,10 +222,17 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun speakText(text: String) {
-        if (::textToSpeech.isInitialized && textToSpeech.isSpeaking.not()) {
+        Log.d("TTS_DEBUG", "speakText: Attempting to speak '$text'")
+        val isInit = ::textToSpeech.isInitialized
+        val isNotSpeaking = textToSpeech.isSpeaking.not()
+        Log.d("TTS_DEBUG", "speakText: Pre-condition check -> isInitialized: $isInit, isNotSpeaking: $isNotSpeaking")
+        if (::textToSpeech.isInitialized) {
+            Log.d("TTS_DEBUG", "speakText: >>> CONDITIONS PASSED. EXECUTING SPEAK <<<")
             // ใช้ความเร็วพูดที่เหมาะสม (0.8-1.0 ตามที่ระบุในเอกสาร)
             textToSpeech.setSpeechRate(0.9f)
             textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        } else {
+            Log.d("TTS_DEBUG", "speakText: --- CONDITIONS FAILED. SKIPPING SPEAK ---")
         }
     }
 
@@ -237,12 +251,8 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
 
             isTtsReady = true
-
-            if (shouldAutoSpeak) {
-                val currentWord = signLanguageWords[currentWordIndex]
-                speakText(currentWord.word)
-                shouldAutoSpeak = false
-            }
+            /* เรียกโหลดคำศัพท์ครั้งแรกตรงนี้ เพราะเรารู้แล้วว่า TTS พร้อมใช้งาน */
+            loadCurrentWord()
         } else {
             Log.e("LearnActivity", "TextToSpeech initialization failed")
             Toast.makeText(this, "ไม่สามารถเริ่มระบบพูดได้", Toast.LENGTH_SHORT).show()
@@ -251,8 +261,8 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onResume() {
         super.onResume()
-        // เล่นวิดีโอต่อเมื่อกลับมาที่หน้านี้
-        if (videoView.canSeekForward()) {
+        // เล่นวิดีโอต่อ ถ้ามันไม่ได้เล่นอยู่ และมีวิดีโอโหลดไว้แล้ว (duration > 0)
+        if (!videoView.isPlaying && videoView.duration > 0) {
             videoView.start()
         }
     }
