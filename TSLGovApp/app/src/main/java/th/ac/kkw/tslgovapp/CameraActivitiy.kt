@@ -35,6 +35,7 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+
 class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var previewView: PreviewView
@@ -110,8 +111,11 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             // หมวดโรงพยาบาล
             videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")))
-            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache}")))
+            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_master}")))
+         //   videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")))
+            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_master}")))
             videoProcessor.createTemplateFromVideos("ช่วย", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.help_master}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
@@ -121,7 +125,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")))
             videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")))
-            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report}")))
+            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report_main}")))
 
             // หมวดสนามบิน/ขนส่ง
             videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")))
@@ -151,11 +155,12 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             toggleDetectionAndRecording()
         }
         btnRepeatSound.setOnClickListener {
-            if (currentVideoFile != null && currentVideoFile!!.exists()) {
+           /* if (currentVideoFile != null && currentVideoFile!!.exists()) {
                 openVideo()
             } else {
                 repeatLastSound()
-            }
+            } */
+            takeScreenshot()
         }
         btnBack.setOnClickListener {
             finish()
@@ -266,6 +271,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    // In CameraActivity.kt
+
     private fun toggleDetectionAndRecording() {
         if (isDetecting) {
             stopRecording()
@@ -275,7 +282,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             resultText.text = "ทำภาษามือเพื่อเริ่มการแปล"
             largeResultText.text = "ยังไม่มีการตรวจจับ"
             largeResultText.setBackgroundColor(Color.TRANSPARENT)
-            btnRepeatSound.text = "เปิดวิดีโอ"
+            // [MODIFIED] Set button text to "Save Image"
+            btnRepeatSound.text = "บันทึกภาพ"
             btnSwitchCamera.isEnabled = true
         } else {
             startRecording()
@@ -284,7 +292,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
             resultText.text = "กำลังตรวจจับภาษามือ..."
             largeResultText.text = "พร้อมรับภาษามือ"
-            btnRepeatSound.text = "เล่นซ้ำ"
+            // [MODIFIED] Set button text to "Save Image"
+            btnRepeatSound.text = "บันทึกภาพ"
             btnSwitchCamera.isEnabled = false
         }
     }
@@ -407,5 +416,51 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.shutdown()
         recording?.stop()
         cooldownHandler.removeCallbacksAndMessages(null)
+    }
+
+    // [NEW FUNCTION] Function to capture the PreviewView as a screenshot
+    private fun takeScreenshot() {
+        // 1. Create a bitmap from the PreviewView
+        val bitmap = previewView.bitmap ?: return
+
+        // 2. Create a unique filename using a timestamp
+        val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+            .format(System.currentTimeMillis())
+        val filename = "TSL_Screenshot_$name.jpg"
+
+        // 3. Save the image to the public Pictures directory
+        // This handles both new (Android 10+) and old Android versions
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // For Android 10 and above (Scoped Storage)
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                }
+                val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    contentResolver.openOutputStream(uri).use { outputStream ->
+                        if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, ำoutputStream)) {
+                            throw java.io.IOException("Failed to save bitmap.")
+                        }
+                    }
+                }
+            } else {
+                // For older Android versions
+                val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                val imageFile = File(picturesDir, filename)
+                java.io.FileOutputStream(imageFile).use { outputStream ->
+                    if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, outputStream)) {
+                        throw java.io.IOException("Failed to save bitmap.")
+                    }
+                }
+            }
+            Toast.makeText(this, "บันทึกภาพสำเร็จในโฟลเดอร์ Pictures", Toast.LENGTH_LONG).show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save screenshot", e)
+            Toast.makeText(this, "เกิดข้อผิดพลาดในการบันทึกภาพ", Toast.LENGTH_SHORT).show()
+        }
     }
 }

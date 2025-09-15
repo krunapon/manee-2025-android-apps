@@ -28,7 +28,7 @@ class SignLanguageAnalyzer(
     private var consecutiveCount = 0
     private var lastDetectedWord = ""
     private var lastAnnouncedWord = "" // ตัวแปรสำหรับจำคำที่พูดไปแล้ว
-    private val requiredConsecutiveDetections = 5
+    private val requiredConsecutiveDetections = 10
 
     init {
         setupMediaPipe()
