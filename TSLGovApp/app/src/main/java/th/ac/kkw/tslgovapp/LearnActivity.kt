@@ -46,7 +46,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "แจ้งความ",
             meaning = "การแจ้งความดำเนินคดี",
-            videoFileName = "report.mp4",
+            videoFileName = "report_main.mp4",
             category = "สถานีตำรวจ"
         ),
         SignWord(
@@ -58,7 +58,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "ปวดหัว",
             meaning = "ปวดหัว",
-            videoFileName = "head_ache.mp4",
+            videoFileName = "head_ache_main.mp4",
             category = "โรงพยาบาล"
         ),
         SignWord(

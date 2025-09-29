@@ -43,9 +43,9 @@ class SignLanguageAnalyzer(
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
                 .setRunningMode(RunningMode.LIVE_STREAM)
-                .setNumHands(1)
-                .setMinHandDetectionConfidence(0.5f)
-                .setMinTrackingConfidence(0.5f)
+                .setNumHands(2)
+                .setMinHandDetectionConfidence(0.4f)
+                .setMinTrackingConfidence(0.4f)
                 .setResultListener { result: HandLandmarkerResult, _: MPImage ->
                     processResults(result)
                 }
@@ -62,42 +62,44 @@ class SignLanguageAnalyzer(
 
     private fun processResults(result: HandLandmarkerResult) {
         // เพิ่ม Log บรรทัดนี้เข้าไป
-        Log.d(TAG, "processResults called. Landmark count: ${result.landmarks().size}")
+        Log.v(TAG, "🔍 processResults: ${result.landmarks().size} hands detected")
         if (result.landmarks().isEmpty()) {
             resetConsecutiveCount()
             return
         }
 
-        val landmarks = result.landmarks().first()
-        val currentHandLandmarks = HandLandmarkData(
-            landmarks = landmarks.map { landmark ->
-                Point3D(landmark.x(), landmark.y(), landmark.z())
+        // 🔧 ปรับปรุง: จัดการกับหลายมือ
+        val allHandsLandmarks = mutableListOf<Point3D>()
+
+        for (handIndex in result.landmarks().indices) {
+            val handLandmarks = result.landmarks()[handIndex]
+
+            // เพิ่ม landmarks ของมือแต่ละข้างเข้าในรายการรวม
+            handLandmarks.forEach { landmark ->
+                allHandsLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
             }
-        )
 
-        // เรียกฟังก์ชัน recognizeGesture เพื่อเอา RecognitionResult? มา
-        val recognitionResult = recognizeGesture(currentHandLandmarks)
+            Log.v(TAG, "   Hand ${handIndex + 1}: ${handLandmarks.size} landmarks")
+        }
 
-        // ตรวจสอบว่าผลลัพธ์ที่ได้ ไม่ใช่ค่าว่าง
+        // สร้าง HandLandmarkData สำหรับทุกมือรวมกัน
+        val combinedHandData = HandLandmarkData(landmarks = allHandsLandmarks)
+
+        val recognitionResult = recognizeGesture(combinedHandData)
+
         if (recognitionResult != null) {
-            // *** แสดงผลลัพธ์การเปรียบเทียบทุกครั้งใน Logcat ตามที่คุณต้องการ ***
-            Log.i(
-                TAG,
-                "Recognition Update -> Word: ${recognitionResult.word}, " +
-                        "Confidence: ${"%.2f".format(recognitionResult.confidence * 100)}%, " +
-                        "Distance: ${"%.4f".format(recognitionResult.distance)}"
-            )
+            Log.v(TAG, "Recognition -> ${recognitionResult.word}: ${String.format("%.1f", recognitionResult.confidence * 100)}%")
 
-            // นำค่า confidence มาตัดสินใจ
-            val confidenceThreshold = 0.6f
+            val confidenceThreshold = 0.5f
+
             if (recognitionResult.confidence >= confidenceThreshold) {
+                Log.d(TAG, "✅ Above threshold: ${recognitionResult.word}")
                 handleConsecutiveDetection(recognitionResult.word)
             } else {
+                Log.v(TAG, "⚠️  Below threshold: ${recognitionResult.word}")
                 resetConsecutiveCount()
             }
-
         } else {
-            // กรณีที่ recognizeSign คืนค่า null (ไม่มี template)
             resetConsecutiveCount()
         }
     }

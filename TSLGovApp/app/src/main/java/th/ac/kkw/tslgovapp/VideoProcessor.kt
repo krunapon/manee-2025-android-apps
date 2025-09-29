@@ -45,7 +45,7 @@ class VideoProcessor(private val context: Context) {
                 .setNumHands(2)
                 .setMinHandDetectionConfidence(0.5f)
                 .setMinHandPresenceConfidence(0.5f)
-                .setMinTrackingConfidence(0.5f)
+                .setMinTrackingConfidence(0.4f)
                 .setRunningMode(RunningMode.IMAGE) // Change to IMAGE mode for frame processing
                 .build()
 

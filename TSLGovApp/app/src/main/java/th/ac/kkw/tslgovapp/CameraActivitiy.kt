@@ -112,15 +112,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดโรงพยาบาล
             videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")))
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_master}")))
-         //   videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")))
-            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_master}")))
-            videoProcessor.createTemplateFromVideos("ช่วย", listOf(
+            videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")))
+            /*videoProcessor.createTemplateFromVideos("ช่วย", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.help_master}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test3}")
-            ))
+            )) */
 
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")))
@@ -441,7 +440,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
                 if (uri != null) {
                     contentResolver.openOutputStream(uri).use { outputStream ->
-                        if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, ำoutputStream)) {
+                        if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95,
+                                outputStream!!
+                            )) {
                             throw java.io.IOException("Failed to save bitmap.")
                         }
                     }
