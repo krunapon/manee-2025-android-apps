@@ -1,6 +1,14 @@
 package th.ac.kkw.tslgovapp
 import th.ac.kkw.tslgovapp.model.Point3D
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
+
+// 🔧 เพิ่ม enum สำหรับประเภทมือ
+enum class HandType {
+    SINGLE_HAND,    // ใช้มือเดียว
+    DOUBLE_HAND     // ใช้สองมือ
+}
+
+// 🔧 เพิ่ม handType ใน SignWord data class
 data class SignWord(
     val word: String,
     val meaning: String,
@@ -8,7 +16,8 @@ data class SignWord(
     val mainVideoFile: String,       // ไฟล์หลักสำหรับ template
     val testVideoFiles: List<String>, // ไฟล์สำหรับทดสอบ
     val priority: Int,               // 1 = ง่ายสุด, 3 = ยากสุด
-    val expectedAccuracy: Int        // เปอร์เซ็นต์ความแม่นยำที่คาดหวัง
+    val expectedAccuracy: Int,        // เปอร์เซ็นต์ความแม่นยำที่คาดหวัง
+    val numHands: Int,
 )
 
 object SignLanguageConfig {
@@ -36,7 +45,8 @@ object SignLanguageConfig {
             Point3D(0.8f, 0.3f, -0.2f)  // ปลายนิ้วก้อย (Pinky DIP)
         )
     )
-    // รายการคำศัพท์ทั้งหมด เรียงตามความง่าย-ยาก
+
+    // 🎯 รายการคำศัพท์ทั้งหมด พร้อมระบุประเภทมือ
     val ALL_WORDS = listOf(
         // Phase 1: คำง่าย (เริ่มทดสอบจากนี้)
         SignWord(
@@ -46,7 +56,8 @@ object SignLanguageConfig {
             mainVideoFile = "help_main.mp4",
             testVideoFiles = listOf("help_test1.mp4", "help_test2.mp4"),
             priority = 1,
-            expectedAccuracy = 85
+            expectedAccuracy = 85,
+            numHands = 2
         ),
 
         SignWord(
@@ -56,7 +67,8 @@ object SignLanguageConfig {
             mainVideoFile = "id_card_main.mp4",
             testVideoFiles = listOf("id_card_test1.mp4", "id_card_test2.mp4"),
             priority = 1,
-            expectedAccuracy = 80
+            expectedAccuracy = 80,
+            numHands = 2
         ),
 
         SignWord(
@@ -66,7 +78,8 @@ object SignLanguageConfig {
             mainVideoFile = "toilet_main.mp4",
             testVideoFiles = listOf("toilet_test1.mp4", "toilet_test2.mp4"),
             priority = 2,
-            expectedAccuracy = 75
+            expectedAccuracy = 75,
+            numHands = 1
         ),
 
         // Phase 2: คำปานกลาง
@@ -77,7 +90,8 @@ object SignLanguageConfig {
             mainVideoFile = "neck_ache_main.mp4",
             testVideoFiles = listOf("neck_ache_test1.mp4", "neck_ache_test2.mp4"),
             priority = 2,
-            expectedAccuracy = 70
+            expectedAccuracy = 70,
+            numHands = 2
         ),
 
         SignWord(
@@ -87,7 +101,8 @@ object SignLanguageConfig {
             mainVideoFile = "airplane_main.mp4",
             testVideoFiles = listOf("airplane_test1.mp4", "airplane_test2.mp4"),
             priority = 2,
-            expectedAccuracy = 75
+            expectedAccuracy = 75,
+            numHands = 1
         ),
 
         // Phase 3: คำยาก
@@ -98,7 +113,8 @@ object SignLanguageConfig {
             mainVideoFile = "head_ache_main.mp4",
             testVideoFiles = listOf("head_ache_test1.mp4", "head_ache_test2.mp4"),
             priority = 3,
-            expectedAccuracy = 65
+            expectedAccuracy = 65,
+            numHands = 1
         ),
 
         SignWord(
@@ -108,7 +124,8 @@ object SignLanguageConfig {
             mainVideoFile = "passport_main.mp4",
             testVideoFiles = listOf("passport_test1.mp4", "passport_test2.mp4"),
             priority = 3,
-            expectedAccuracy = 65
+            expectedAccuracy = 65,
+            numHands = 2
         ),
 
         SignWord(
@@ -118,7 +135,8 @@ object SignLanguageConfig {
             mainVideoFile = "lost_main.mp4",
             testVideoFiles = listOf("lost_test1.mp4", "lost_test2.mp4"),
             priority = 3,
-            expectedAccuracy = 60
+            expectedAccuracy = 60,
+            numHands = 2
         ),
 
         SignWord(
@@ -128,11 +146,12 @@ object SignLanguageConfig {
             mainVideoFile = "report_main.mp4",
             testVideoFiles = listOf("report_test1.mp4", "report_test2.mp4"),
             priority = 3,
-            expectedAccuracy = 60
+            expectedAccuracy = 60,
+            numHands = 1
         )
     )
 
-    // ฟังก์ชันช่วยเหลือ
+    // ฟังก์ชันช่วยเหลือเดิม
     fun getWordsByPriority(priority: Int): List<SignWord> {
         return ALL_WORDS.filter { it.priority == priority }
     }
@@ -148,4 +167,19 @@ object SignLanguageConfig {
     fun getTestingOrder(): List<SignWord> {
         return ALL_WORDS.sortedWith(compareBy<SignWord> { it.priority }.thenBy { it.word })
     }
+
+
+
+
+
+
+
+    /**
+     * ได้รายชื่อชื่อคำศัพท์เฉพาะ (สำหรับ backward compatibility)
+     */
+    fun getAllWordNames(): List<String> {
+        return ALL_WORDS.map { it.word }
+    }
+
+
 }

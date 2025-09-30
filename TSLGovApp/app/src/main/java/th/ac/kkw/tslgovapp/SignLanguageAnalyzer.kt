@@ -28,7 +28,7 @@ class SignLanguageAnalyzer(
     private var consecutiveCount = 0
     private var lastDetectedWord = ""
     private var lastAnnouncedWord = "" // ตัวแปรสำหรับจำคำที่พูดไปแล้ว
-    private val requiredConsecutiveDetections = 10
+    private val requiredConsecutiveDetections = 5
 
     init {
         setupMediaPipe()
@@ -61,45 +61,45 @@ class SignLanguageAnalyzer(
     }
 
     private fun processResults(result: HandLandmarkerResult) {
-        // เพิ่ม Log บรรทัดนี้เข้าไป
-        Log.v(TAG, "🔍 processResults: ${result.landmarks().size} hands detected")
-        if (result.landmarks().isEmpty()) {
+        val numDetectedHands = result.landmarks().size
+
+        Log.v(TAG, "🔍 processResults: $numDetectedHands hand(s) detected")
+
+        if (numDetectedHands == 0) {
             resetConsecutiveCount()
             return
         }
 
-        // 🔧 ปรับปรุง: จัดการกับหลายมือ
+        // ⭐ รวมข้อมูลจากทุกมือที่ตรวจพบ
         val allHandsLandmarks = mutableListOf<Point3D>()
 
         for (handIndex in result.landmarks().indices) {
             val handLandmarks = result.landmarks()[handIndex]
-
-            // เพิ่ม landmarks ของมือแต่ละข้างเข้าในรายการรวม
             handLandmarks.forEach { landmark ->
                 allHandsLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
             }
-
             Log.v(TAG, "   Hand ${handIndex + 1}: ${handLandmarks.size} landmarks")
         }
 
-        // สร้าง HandLandmarkData สำหรับทุกมือรวมกัน
         val combinedHandData = HandLandmarkData(landmarks = allHandsLandmarks)
 
-        val recognitionResult = recognizeGesture(combinedHandData)
+        // ⭐ ส่งจำนวนมือที่ตรวจพบไปด้วย
+        val recognitionResult = recognizeGesture(combinedHandData, numDetectedHands)
 
         if (recognitionResult != null) {
-            Log.v(TAG, "Recognition -> ${recognitionResult.word}: ${String.format("%.1f", recognitionResult.confidence * 100)}%")
+            Log.v(TAG, "Recognition -> ${recognitionResult.word}: ${String.format("%.1f", recognitionResult.confidence)}%")
 
-            val confidenceThreshold = 0.5f
+            val confidenceThreshold = 0.65f
 
             if (recognitionResult.confidence >= confidenceThreshold) {
                 Log.d(TAG, "✅ Above threshold: ${recognitionResult.word}")
                 handleConsecutiveDetection(recognitionResult.word)
             } else {
-                Log.v(TAG, "⚠️  Below threshold: ${recognitionResult.word}")
+                Log.v(TAG, "⚠️ Below threshold: ${recognitionResult.word}")
                 resetConsecutiveCount()
             }
         } else {
+            Log.v(TAG, "❌ No match found for $numDetectedHands hand(s)")
             resetConsecutiveCount()
         }
     }
@@ -108,13 +108,16 @@ class SignLanguageAnalyzer(
      * ปรับปรุงฟังก์ชันนี้ให้เรียกใช้ VideoProcessor เพียงอย่างเดียว
      * เพื่อทำการเปรียบเทียบกับ Template ทั้งหมด
      */
-    private fun recognizeGesture(handLandmarks: HandLandmarkData): RecognitionResult?  {
-        try {
-            // ตามเป้าหมายโครงการที่ต้องการความแม่นยำ ≥ 70% [cite: 178]
-            return videoProcessor.recognizeSign(handLandmarks)
+    private fun recognizeGesture(
+        handLandmarks: HandLandmarkData,
+        numDetectedHands: Int  // ⭐ เพิ่มตรงนี้
+    ): RecognitionResult? {
+        return try {
+            // ⭐ ส่งจำนวนมือไปให้ VideoProcessor
+            videoProcessor.recognizeSign(handLandmarks, numDetectedHands)
         } catch (e: Exception) {
             Log.e(TAG, "Error recognizing gesture: ${e.message}")
-            return null
+            null
         }
     }
 
@@ -129,7 +132,8 @@ class SignLanguageAnalyzer(
             lastDetectedWord = word
             lastAnnouncedWord = "" // สำคัญมาก : รีเซ็ตเพื่อให้คำใหม่พูดได้
         }
-
+        // เพิ่ม Debug Log
+        Log.d(TAG, "📊 Best: $word count=$consecutiveCount/$requiredConsecutiveDetections, lastAnnounced=$lastAnnouncedWord")
         if (consecutiveCount >= requiredConsecutiveDetections && word != lastAnnouncedWord ) {
             onResult(word)
             resetConsecutiveCount() // รีเซ็ตหลังจากส่งผลลัพธ์

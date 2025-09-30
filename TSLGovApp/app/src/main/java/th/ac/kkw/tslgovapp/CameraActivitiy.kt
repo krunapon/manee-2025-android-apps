@@ -110,9 +110,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             Log.d(TAG, "Starting to load sign language templates...")
 
             // หมวดโรงพยาบาล
-            videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")))
-            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_master}")))
-            videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")))
+            videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")), 2)
+            videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}")), 1)
+            videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")), 2)
             /*videoProcessor.createTemplateFromVideos("ช่วย", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.help_master}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
@@ -122,15 +122,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             )) */
 
             // หมวดสถานีตำรวจ
-            videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")))
-            videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")))
-            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report_main}")))
+            videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")),2)
+            videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")), 2)
+            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report_main}")), 1)
 
             // หมวดสนามบิน/ขนส่ง
-            videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")))
-            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane}")))
-            videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(Uri.parse("android.resource://$packageName/${R.raw.toilet}")))
-
+            videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
+            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane}")),1)
+            videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(Uri.parse("android.resource://$packageName/${R.raw.toilet_ta}")), 1)
             // เมื่อโหลดเสร็จ สามารถแจ้งเตือนผู้ใช้ได้ (ต้องกลับมาที่ Main Thread)
             withContext(Dispatchers.Main) {
                 Toast.makeText(this@CameraActivity, "ระบบพร้อมใช้งาน", Toast.LENGTH_SHORT).show()
@@ -361,10 +360,17 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun updateResult(result: String) {
+        // ✅ เพิ่ม Log เพื่อดูว่าได้รับค่าอะไรมาจริงๆ
+        Log.e(TAG, "🎯 updateResult() received: '$result'")
+        Log.e(TAG, "🎯 lastRecognizedWord: '$lastRecognizedWord'")
+        Log.e(TAG, "🎯 isSpeakingCooldown: $isSpeakingCooldown")
+
         if (isSpeakingCooldown) {
-            // ถ้ายังอยู่ในช่วง Cooldown ให้เมินผลลัพธ์นี้ไปเลย
+            Log.d(TAG, "⏭️ Skipping due to cooldown")
             return
         }
+        // เพิ่ม Debug Log
+        Log.d(TAG, "🎤 Best: updateResult called: result='$result', last='$lastRecognizedWord'")
 
         if (isDetecting && result.isNotEmpty() && result != lastRecognizedWord) {
             lastRecognizedWord = result
