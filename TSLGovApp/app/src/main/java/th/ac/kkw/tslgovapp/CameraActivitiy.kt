@@ -128,7 +128,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             // หมวดสนามบิน/ขนส่ง
             videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
-            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane}")),1)
+            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane_tom}")),1)
             videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(Uri.parse("android.resource://$packageName/${R.raw.toilet_ta}")), 1)
             // เมื่อโหลดเสร็จ สามารถแจ้งเตือนผู้ใช้ได้ (ต้องกลับมาที่ Main Thread)
             withContext(Dispatchers.Main) {
@@ -361,9 +361,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun updateResult(result: String) {
         // ✅ เพิ่ม Log เพื่อดูว่าได้รับค่าอะไรมาจริงๆ
-        Log.e(TAG, "🎯 updateResult() received: '$result'")
-        Log.e(TAG, "🎯 lastRecognizedWord: '$lastRecognizedWord'")
-        Log.e(TAG, "🎯 isSpeakingCooldown: $isSpeakingCooldown")
+        Log.d(TAG, "🎯 updateResult() received: '$result'")
+        Log.d(TAG, "🎯 lastRecognizedWord: '$lastRecognizedWord'")
+        Log.d(TAG, "🎯 isSpeakingCooldown: $isSpeakingCooldown")
 
         if (isSpeakingCooldown) {
             Log.d(TAG, "⏭️ Skipping due to cooldown")

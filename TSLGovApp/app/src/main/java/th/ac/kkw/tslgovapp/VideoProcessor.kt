@@ -69,6 +69,27 @@ class VideoProcessor(private val context: Context) {
         }
     }
 
+    /**
+     * Detects which hand is actively signing based on position and movement
+     * Returns the index of the active hand (0 or 1)
+     */
+    private fun findActiveHand(hands: List<List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>>): Int {
+        if (hands.size == 1) return 0
+
+        val hand0Wrist = hands[0][0]
+        val hand1Wrist = hands[1][0]
+
+        // Active hand characteristics:
+        // 1. Higher position (lower y value in normalized coordinates)
+        // 2. More forward (lower z value - closer to camera)
+        // 3. More centered (x closer to 0.5)
+
+        val hand0Score = hand0Wrist.y() + (hand0Wrist.z() * 0.5f) + kotlin.math.abs(hand0Wrist.x() - 0.5f) * 0.3f
+        val hand1Score = hand1Wrist.y() + (hand1Wrist.z() * 0.5f) + kotlin.math.abs(hand1Wrist.x() - 0.5f) * 0.3f
+
+        return if (hand0Score < hand1Score) 0 else 1
+    }
+
     // ============ FIX 1: เพิ่ม Hand Normalization ============
 
     /**
@@ -112,6 +133,7 @@ class VideoProcessor(private val context: Context) {
         return HandLandmarkData(normalized)
     }
 
+
     fun createTemplateFromVideos(
         label: String,
         videoUris: List<Uri>,
@@ -139,7 +161,21 @@ class VideoProcessor(private val context: Context) {
                             // ⭐ ตรวจสอบจำนวนมือที่ตรวจพบ
                             val detectedHands = result.landmarks().size
                             Log.d(TAG, "checking template $label: $detectedHands hand(s)")
-                            if (detectedHands == numHands) {
+
+                            // Handle the case where we want 1 hand but detect 2
+                            if (numHands == 1 && detectedHands == 2) {
+                                Log.d(TAG, "   Detected 2 hands but need 1 - finding active hand")
+                                val activeHandIndex = findActiveHand(result.landmarks())
+                                val activeHand = result.landmarks()[activeHandIndex]
+
+                                val allHandsLandmarks = mutableListOf<Point3D>()
+                                activeHand.forEach { lm ->
+                                    allHandsLandmarks.add(Point3D(lm.x(), lm.y(), lm.z()))
+                                }
+                                allLandmarksFromAllVideos.add(allHandsLandmarks)
+                                Log.d(TAG, "   ✅ Used hand $activeHandIndex as active signing hand")
+
+                            } else if (detectedHands == numHands) {
                                 // เก็บเฉพาะเฟรมที่มีจำนวนมือตรงกับที่กำหนด
                                 val allHandsLandmarks = mutableListOf<Point3D>()
 
@@ -204,10 +240,6 @@ class VideoProcessor(private val context: Context) {
                     return false
                 }
 
-                // มือซ้าย (0-20) และมือขวา (21-41)
-                val leftWrist = landmarks.landmarks[0]
-                val rightWrist = landmarks.landmarks[21]
-
                 val leftIndexTip = landmarks.landmarks[8]
                 val rightIndexTip = landmarks.landmarks[29]
 
@@ -215,26 +247,11 @@ class VideoProcessor(private val context: Context) {
                 val handsClose = kotlin.math.abs(leftIndexTip.x - rightIndexTip.x) < 0.15f &&
                         kotlin.math.abs(leftIndexTip.y - rightIndexTip.y) < 0.15f
 
-                // เงื่อนไข 2: มือทั้งสองอยู่ตรงกลางลำตัว (ไม่เอียงไปข้างใดข้างหนึ่ง)
-                val handsInCenter = leftWrist.x > 0.3f && leftWrist.x < 0.7f &&
-                        rightWrist.x > 0.3f && rightWrist.x < 0.7f
 
-                // เงื่อนไข 3: มือทั้งสองยกขึ้นในระดับอก (ไม่ต่ำเกินไป)
-                val handsRaised = leftWrist.y < 0.6f && rightWrist.y < 0.6f
-
-                // เงื่อนไข 4: นิ้วชี้ทั้งสองยื่นออกมา (ไม่พับ)
-                val leftIndexExtended = leftIndexTip.y < landmarks.landmarks[6].y // PIP joint
-                val rightIndexExtended = rightIndexTip.y < landmarks.landmarks[27].y
-
-                val result = handsClose && handsInCenter && handsRaised &&
-                        leftIndexExtended && rightIndexExtended
+                val result = handsClose
 
                 Log.d(TAG, "      🆘 ช่วย check:")
                 Log.d(TAG, "         handsClose=$handsClose (distance=${String.format("%.3f", kotlin.math.abs(leftIndexTip.x - rightIndexTip.x))})")
-                Log.d(TAG, "         handsInCenter=$handsInCenter")
-                Log.d(TAG, "         handsRaised=$handsRaised")
-                Log.d(TAG, "         leftIndexExtended=$leftIndexExtended")
-                Log.d(TAG, "         rightIndexExtended=$rightIndexExtended")
                 Log.d(TAG, "         RESULT=$result")
 
                 return result
@@ -242,66 +259,182 @@ class VideoProcessor(private val context: Context) {
 
             "เครื่องบิน" -> {
 
-                // เงื่อนไข 3: นิ้วกลางพับลง
-                val middleFolded = kotlin.math.abs(middleTip.x - wrist.x) <
-                kotlin.math.abs(middlePip.x - wrist.x) + 0.05f
+                // ✅ เงื่อนไข 3: นิ้วกลางและนิ้วนางพับลง
+                val middleFolded = middleTip.y > middlePip.y - 0.03f
+                val ringFolded = ringTip.y > ringPip.y - 0.03f
 
-                // เงื่อนไข 4: นิ้วนางพับลง
-                val ringFolded = kotlin.math.abs(ringTip.x - wrist.x) <
-                kotlin.math.abs(ringPip.x - wrist.x) + 0.05f
+                // ✅ เงื่อนไข 4: นิ้วชี้และนิ้วก้อยยื่นออก
+                val indexExtended = indexTip.y < indexPip.y
 
+                val result = middleFolded &&
+                        ringFolded
 
-                val result = middleFolded && ringFolded
-
-                Log.d(TAG, "      เครื่องบิน check:")
-                Log.d(TAG, "         middleFolded=$middleFolded")
-                Log.d(TAG, "         ringFolded=$ringFolded")
+                Log.d(TAG, "      ✈️ เครื่องบิน check:")
+                Log.d(TAG, "         middleFolded=$middleFolded, ringFolded=$ringFolded")
                 Log.d(TAG, "         RESULT=$result")
 
                 return result
             }
 
             "แจ้งความ" -> {
-                // เงื่อนไข 2: นิ้วกลางพับลง (ไม่ยื่น)
-                val middleNotExtended = kotlin.math.abs(middleTip.x - wrist.x) <
-                kotlin.math.abs(middlePip.x - wrist.x) + 0.05f
+                // ตรวจสอบการพับนิ้ว
+                val middleNotExtended = kotlin.math.abs(middleTip.y - wrist.y) <
+                kotlin.math.abs(middlePip.y - wrist.y) + 0.05f
+                val ringNotExtended = kotlin.math.abs(ringTip.y - wrist.y) <
+                kotlin.math.abs(ringPip.y - wrist.y) + 0.05f
 
-                // เงื่อนไข 3: นิ้วนางพับลง
-                val ringNotExtended = kotlin.math.abs(ringTip.x - wrist.x) <
-                kotlin.math.abs(ringPip.x - wrist.x) + 0.05f
+                // ตรวจสอบว่ามือยกขึ้น แต่ไม่ใกล้หน้า
+                val handRaised = wrist.y < 0.45f
 
-                // เงื่อนไข 4: นิ้วก้อยพับลง (แยกจาก "เครื่องบิน")
-                val pinkyNotExtended = kotlin.math.abs(pinkyTip.x - wrist.x) <
-                kotlin.math.abs(pinkyPip.x - wrist.x) + 0.05f
+                // ตรวจสอบว่านิ้วชี้และนิ้วหัวแม่มือยื่นออก
+                val thumbExtended = kotlin.math.abs(thumbTip.x - wrist.x) > 0.1f
 
-                // เงื่อนไข 5: มือยกสูง (wrist.y น้อย)
-                val handRaised = wrist.y < 0.4f
 
-                val result =  middleNotExtended &&
-                        ringNotExtended && pinkyNotExtended && handRaised
+                val result = middleNotExtended && ringNotExtended && handRaised && thumbExtended
 
-                Log.d(TAG, "      📝 แจ้งความ check:")
-                Log.d(TAG, "         middleNotExtended=$middleNotExtended")
-                Log.d(TAG, "         ringNotExtended=$ringNotExtended")
-                Log.d(TAG, "         pinkyNotExtended=$pinkyNotExtended")
-                Log.d(TAG, "         handRaised=$handRaised (wrist.y=${String.format("%.3f", wrist.y)})")
-                Log.d(TAG, "         RESULT=$result")
-
+                Log.d(TAG, "      📝 แจ้งความ: middle=$middleNotExtended, ring=$ringNotExtended, " +
+                        "raised=$handRaised, thumb=$thumbExtended, " +
+                        "→ $result")
                 return result
             }
 
             "ปวดหัว" -> {
-                // เงื่อนไข 1: มือยกสูง (ใกล้หัว)
-                val handNearHead = wrist.y < 0.3f
+                // ✅ เงื่อนไข 1: มือยกสูง (ใกล้หน้า)
+                val handRaised = wrist.y < 0.35f  // เข้มงวดขึ้น
 
-                // เงื่อนไข 4: มือไม่แยกห่างจากหน้า (ระยะ z ใกล้)
-                val handCloseToFace = kotlin.math.abs(indexTip.z - wrist.z) < 0.15f
+                // ✅ เงื่อนไข 2: มือใกล้หน้า (แกน Z)
+                val handNearFace = kotlin.math.abs(indexTip.z - wrist.z) < 0.18f
 
-                val result = handNearHead && handCloseToFace
+                // ✅ เงื่อนไข 3: มือไม่เหยียดไปข้างหน้า
+                val notForward = kotlin.math.abs(indexTip.z - wrist.z) < 0.2f
+
+                // ✅ เงื่อนไข 4: นิ้วไม่ยื่นออกแบบเครื่องบิน (อย่างน้อย 2 นิ้วพับ)
+                val fingersFolded = (middleTip.y > middlePip.y - 0.03f) ||
+                        (ringTip.y > ringPip.y - 0.03f)
+
+                val result = handRaised && handNearFace && notForward && fingersFolded
 
                 Log.d(TAG, "      🤕 ปวดหัว check:")
-                Log.d(TAG, "         handNearHead=$handNearHead (wrist.y=${String.format("%.3f", wrist.y)})")
-                Log.d(TAG, "         handCloseToFace=$handCloseToFace")
+                Log.d(TAG, "         raised=$handRaised (y=${String.format("%.3f", wrist.y)})")
+                Log.d(TAG, "         nearFace=$handNearFace")
+                Log.d(TAG, "         notForward=$notForward")
+                Log.d(TAG, "         fingersFolded=$fingersFolded")
+                Log.d(TAG, "         RESULT=$result")
+
+                return result
+
+            }
+
+            "เจ็บคอ" -> {
+                // ต้องมี 42 landmarks (2 มือ)
+                if (landmarks.landmarks.size < 42) {
+                    Log.d(TAG, "      ❌ เจ็บคอ: ต้องใช้ 2 มือ")
+                    return false
+                }
+
+                val leftWrist = landmarks.landmarks[0]
+                val rightWrist = landmarks.landmarks[21]
+                val leftIndexTip = landmarks.landmarks[8]
+                val rightIndexTip = landmarks.landmarks[29]
+
+                // เงื่อนไข: มือทั้งสองอยู่บริเวณคอ (y สูง, ใกล้กัน)
+                val handsNearNeck = leftWrist.y < 0.4f && rightWrist.y < 0.4f
+                val handsClose = kotlin.math.abs(leftIndexTip.x - rightIndexTip.x) < 0.3f
+
+                val result = handsNearNeck && handsClose
+
+                Log.d(TAG, "      🤕 เจ็บคอ check: nearNeck=$handsNearNeck, close=$handsClose → $result")
+                return result
+            }
+
+            "หาย" -> {
+                // ต้องมี 42 landmarks (2 มือ)
+                if (landmarks.landmarks.size < 42) {
+                    Log.d(TAG, "      ❌ หาย: ต้องใช้ 2 มือ")
+                    return false
+                }
+
+                val leftWrist = landmarks.landmarks[0]
+                val rightWrist = landmarks.landmarks[21]
+
+                // เงื่อนไข: มือแยกออกจากกัน (คล้ายท่าทาง "หาย")
+                val handsSeparated = kotlin.math.abs(leftWrist.x - rightWrist.x) > 0.3f
+                val bothHandsRaised = leftWrist.y < 0.6f && rightWrist.y < 0.6f
+
+                val result = handsSeparated && bothHandsRaised
+
+                Log.d(TAG, "      🔍 หาย check: separated=$handsSeparated, raised=$bothHandsRaised → $result")
+                return result
+            }
+
+            "บัตรประชาชน" -> {
+                // ต้องมี 42 landmarks (2 มือ)
+                if (landmarks.landmarks.size < 42) {
+                    Log.d(TAG, "      ❌ บัตรประชาชน: ต้องใช้ 2 มือ")
+                    return false
+                }
+
+                val leftThumb = landmarks.landmarks[4]
+                val leftIndex = landmarks.landmarks[8]
+                val rightThumb = landmarks.landmarks[25]
+                val rightIndex = landmarks.landmarks[29]
+
+                // เงื่อนไข: มือทั้งสองทำท่าทางถือบัตร (นิ้วชี้และหัวแม่มือใกล้กัน)
+                val leftPinch = kotlin.math.abs(leftThumb.x - leftIndex.x) < 0.1f
+                val rightPinch = kotlin.math.abs(rightThumb.x - rightIndex.x) < 0.1f
+                val handsParallel = kotlin.math.abs(leftThumb.y - rightThumb.y) < 0.15f
+
+                val result = leftPinch && rightPinch && handsParallel
+
+                Log.d(TAG, "      🪪 บัตรประชาชน check: leftPinch=$leftPinch, rightPinch=$rightPinch → $result")
+                return result
+            }
+
+            "หนังสือเดินทาง" -> {
+                // ต้องมี 42 landmarks (2 มือ)
+                if (landmarks.landmarks.size < 42) {
+                    Log.d(TAG, "      ❌ หนังสือเดินทาง: ต้องใช้ 2 มือ")
+                    return false
+                }
+
+                // คล้าย "บัตรประชาชน" แต่มือแยกห่างมากกว่า
+                val leftWrist = landmarks.landmarks[0]
+                val rightWrist = landmarks.landmarks[21]
+
+                val widerSpacing = kotlin.math.abs(leftWrist.x - rightWrist.x) > 0.25f
+                val bothHandsCenter = leftWrist.y > 0.3f && rightWrist.y > 0.3f
+
+                val result = widerSpacing && bothHandsCenter
+
+                Log.d(TAG, "      📘 หนังสือเดินทาง check: wider=$widerSpacing, center=$bothHandsCenter → $result")
+                return result
+            }
+
+            "ห้องน้ำ" -> {
+                if (landmarks.landmarks.size < 21) return false
+
+                val wrist = landmarks.landmarks[0]
+                val indexTip = landmarks.landmarks[8]
+                val indexPip = landmarks.landmarks[6]
+                val middleTip = landmarks.landmarks[12]
+                val middlePip = landmarks.landmarks[10]
+
+                // ✅ เงื่อนไข 1: นิ้วชี้ยื่นออกมากกว่านิ้วอื่น (ไม่จำเป็นต้องยื่นขึ้น)
+                val indexMoreExtended = kotlin.math.abs(indexTip.y - wrist.y) >
+                        kotlin.math.abs(middleTip.y - wrist.y) + 0.03f
+
+                // ✅ เงื่อนไข 2: มืออยู่ใกล้เอว (ไม่ใกล้หน้า)
+                val handNearWaist = wrist.y > 0.35f && wrist.y < 0.7f
+
+                // ✅ เงื่อนไข 3: มือไม่หันไปด้านข้าง (ค่อนข้างตรง)
+                val handCentered = kotlin.math.abs(wrist.x - 0.5f) < 0.3f
+
+                val result = handCentered
+
+                Log.d(TAG, "      🚻 ห้องน้ำ check:")
+                Log.d(TAG, "         indexMoreExtended=$indexMoreExtended")
+                Log.d(TAG, "         handNearWaist=$handNearWaist (y=${String.format("%.3f", wrist.y)})")
+                Log.d(TAG, "         handCentered=$handCentered (x=${String.format("%.3f", wrist.x)})")
                 Log.d(TAG, "         RESULT=$result")
 
                 return result
@@ -373,6 +506,7 @@ class VideoProcessor(private val context: Context) {
         Log.d(TAG, "========================================")
         Log.d(TAG, "🔍 ALL TEMPLATES: ${signTemplates.keys.joinToString(", ")}")
         Log.d(TAG, "🔍 Detected hands: $numDetectedHands")
+        Log.d(TAG, "🔍 Current landmarks size: ${currentGestureLandmarks.landmarks.size}")
 
         if (signTemplates.isEmpty()) {
             Log.w(TAG, "❌ No templates loaded")
@@ -381,7 +515,7 @@ class VideoProcessor(private val context: Context) {
 
         // Debug 2: ตรวจสอบ numHands แต่ละ template
         signTemplates.forEach { (label, template) ->
-            val handsMatch = template.numHands == numDetectedHands
+            val handsMatch = template.numHands <= numDetectedHands
             Log.d(TAG, "   Template '$label': needs ${template.numHands} hands, match=$handsMatch")
         }
 
@@ -393,12 +527,12 @@ class VideoProcessor(private val context: Context) {
 
         // กรอง candidates
         val candidateTemplates = signTemplates.filter { (label, template) ->
-            val handsMatch = template.numHands == numDetectedHands
+            val handsMatch = template.numHands <= numDetectedHands
             val gesturePass = checkGestureCharacteristics(currentGestureLandmarks, label)
 
             // Debug 4: แสดงเหตุผลที่ถูกกรอง
             if (!handsMatch) {
-                Log.d(TAG, "   ❌ '$label' filtered: numHands mismatch")
+                Log.d(TAG, "   ❌ '$label' filtered: needs ${template.numHands} hands, got $numDetectedHands")
             }
             if (!gesturePass) {
                 Log.d(TAG, "   ❌ '$label' filtered: gesture check failed")
@@ -426,46 +560,96 @@ class VideoProcessor(private val context: Context) {
 
         var bestMatchLabel: String? = null
         var minDistance = Float.MAX_VALUE
-        var confidence: Float = 0f
+        var bestConfidence: Float = 0f
 
         for ((label, template) in candidateTemplates) {
+            // ⭐ FIX: ตัด current landmarks ให้ตรงกับจำนวนมือของ template
+            val requiredLandmarks = template.numHands * 21
+            val currentLandmarksToCompare = if (currentGestureLandmarks.landmarks.size > requiredLandmarks) {
+                HandLandmarkData(currentGestureLandmarks.landmarks.take(requiredLandmarks))
+            } else {
+                currentGestureLandmarks
+            }
+
+            Log.d(TAG, "📏 Comparing '$label':")
+            Log.d(TAG, "   Template: ${template.landmarks.landmarks.size} landmarks (${template.numHands} hands)")
+            Log.d(TAG, "   Current (trimmed): ${currentLandmarksToCompare.landmarks.size} landmarks")
+
+            // ตรวจสอบขนาดก่อนเปรียบเทียบ
+            if (currentLandmarksToCompare.landmarks.size != template.landmarks.landmarks.size) {
+                Log.w(TAG, "   ⚠️ Size mismatch! Skipping '$label'")
+                continue
+            }
+
             // Normalize template ด้วย
+            val normalizedCurrentForCompare = normalizeHandLandmarks(currentLandmarksToCompare)
             val normalizedTemplate = normalizeHandLandmarks(template.landmarks)
 
+            Log.d(TAG, "📏 Comparing '$label': current=${normalizedCurrentForCompare.landmarks.size}, template=${normalizedTemplate.landmarks.size}")
+
             val distance = calculateEuclideanDistance(
-                normalizedCurrent,
+                normalizedCurrentForCompare,
                 normalizedTemplate
             )
 
-            // FIX 3: ใช้ Exponential Decay สำหรับ Confidence
+            // สองมือมีความแปรปรวนสูงกว่า จึงใช้ threshold สูงกว่า
+            val maxDistance = if (template.numHands == 2) 2.5f else 2.0f
 
-
-            val maxDistance = 2.0f  // ระยะทางสูงสุดที่ยอมรับได้
-
-            confidence = max(0.0f, (1.0f - distance / maxDistance) * 100)
+            val confidence = max(0.0f, (1.0f - distance / maxDistance) * 100)
             Log.v(TAG, "  checking template $label: dist=${String.format("%.4f", distance)}, conf=${String.format("%.1f%%", confidence)}")
 
             if (distance < minDistance) {
                 minDistance = distance
                 bestMatchLabel = label
+                bestConfidence = confidence
             }
             Log.v(TAG, "checking template ${label},  best: ${bestMatchLabel}  minDistance=${String.format("%.1f%%", minDistance)}")
         }
 
         if (bestMatchLabel != null) {
-            // ใช้ exponential decay แทน linear
-            //val confidence = kotlin.math.exp(-minDistance * 5.0f)
+            // ✅ ลด threshold สำหรับมือเดียว
+            val minConfidenceThreshold = if (signTemplates[bestMatchLabel]?.numHands == 2) {
+                25f  // สองมือ threshold ต่ำกว่า
+            } else {
+                30f  // ✅ เดิม 60f → เปลี่ยนเป็น 40f
+            }
 
-            Log.d(TAG, "✅ Best: $bestMatchLabel (${String.format("%.1f%%", confidence)})")
-
-            return RecognitionResult(
-                word = bestMatchLabel,
-                confidence = confidence,
-                distance = minDistance
+            Log.d(
+                TAG,
+                "🎯 Checking confidence: ${
+                    String.format(
+                        "%.1f%%",
+                        bestConfidence
+                    )
+                } vs threshold $minConfidenceThreshold%"
             )
-        }
 
-        return null
+            if (bestConfidence >= minConfidenceThreshold) {
+                Log.d(TAG, "✅ Best: $bestMatchLabel (${String.format("%.1f%%", bestConfidence)})")
+                return RecognitionResult(
+                    word = bestMatchLabel,
+                    confidence = bestConfidence,
+                    distance = minDistance
+                )
+            } else {
+                Log.d(
+                    TAG,
+                    "❌ Below threshold: ${
+                        String.format(
+                            "%.1f%%",
+                            bestConfidence
+                        )
+                    } < ${minConfidenceThreshold}%"
+                )
+                return null
+            }
+        } else {
+            Log.d(
+                TAG,
+                "❌ BestMatchLabel is null"
+            )
+            return null
+        }
     }
     // In VideoProcessor.kt
 

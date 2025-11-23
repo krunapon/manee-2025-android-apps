@@ -21,6 +21,15 @@ class SignLanguageAnalyzer(
     private val onResult: (String) -> Unit
 ) : ImageAnalysis.Analyzer {
 
+    // ✅ เพิ่มตัวแปรจับเวลา
+    private var gestureStartTime = 0L
+    private var isGestureInProgress = false
+    private var hasLoggedThisGesture = false
+
+    // ✅ เพิ่มตัวแปรเหล่านี้
+    private var lastRecognitionTime = 0L
+    private val RECOGNITION_COOLDOWN = 2000L
+
     private var handLandmarker: HandLandmarker? = null
     private var lastInferenceTime = 0L
     private val TAG = "SignLanguageAnalyzer"
@@ -28,7 +37,8 @@ class SignLanguageAnalyzer(
     private var consecutiveCount = 0
     private var lastDetectedWord = ""
     private var lastAnnouncedWord = "" // ตัวแปรสำหรับจำคำที่พูดไปแล้ว
-    private val requiredConsecutiveDetections = 5
+    private val requiredConsecutiveDetections = 2
+    private val ANNOUNCE_COOLDOWN = 1500L // ✅ 1.5 วินาที
 
     init {
         setupMediaPipe()
@@ -63,15 +73,70 @@ class SignLanguageAnalyzer(
     private fun processResults(result: HandLandmarkerResult) {
         val numDetectedHands = result.landmarks().size
 
-        Log.v(TAG, "🔍 processResults: $numDetectedHands hand(s) detected")
+        if (numDetectedHands == 0) {
+            // ถ้าไม่มีมือ รีเซ็ตการจับเวลา
+            if (isGestureInProgress) {
+                // ✅ ตรวจสอบว่าผ่าน cooldown แล้วหรือยัง
+                val timeSinceLastRecognition = System.currentTimeMillis() - lastRecognitionTime
+                if (timeSinceLastRecognition > RECOGNITION_COOLDOWN) {
+                    Log.d(TAG, "⏹️ Gesture ended (hands removed)")
+                    isGestureInProgress = false
+                    hasLoggedThisGesture = false
+                }
+            }
+            resetConsecutiveCount()
+            return
+        }
+
+        // ✅ เช็คว่าอยู่ใน cooldown หรือไม่
+        val timeSinceLastRecognition = System.currentTimeMillis() - lastRecognitionTime
+        if (timeSinceLastRecognition < RECOGNITION_COOLDOWN) {
+            Log.v(TAG, "🚫 In cooldown period (${RECOGNITION_COOLDOWN - timeSinceLastRecognition}ms left)")
+            return
+        }
+
+        // ✅ จับเวลาเริ่มต้น (เมื่อเห็นมือครั้งแรก)
+        if (!isGestureInProgress) {
+            gestureStartTime = System.currentTimeMillis()
+            isGestureInProgress = true
+            hasLoggedThisGesture = false
+            Log.d(TAG, "▶️ Gesture started")
+        }
+
+        Log.d(TAG, "🔍 Frame analysis:")
+        Log.d(TAG, "   Detected: $numDetectedHands hand(s)")
+
+        // ใช้ threshold ต่างกันตามจำนวนมือ
+        val confidenceThreshold = 50f
+
+        Log.d(TAG, "🔍 Frame analysis:")
+        Log.d(TAG, "   Detected: $numDetectedHands hand(s)")
+
+        if (numDetectedHands == 0) {
+            Log.v(TAG, "   ⚠️ No hands detected - resetting")
+            resetConsecutiveCount()
+            return
+        }
+
+        // รวมข้อมูลจากทุกมือที่ตรวจพบ
+        val allHandsLandmarks = mutableListOf<Point3D>()
+
+        for (handIndex in result.landmarks().indices) {
+            val handLandmarks = result.landmarks()[handIndex]
+            handLandmarks.forEach { landmark ->
+                allHandsLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
+            }
+            Log.v(TAG, "   Hand ${handIndex + 1}: ${handLandmarks.size} landmarks")
+        }
+
+        Log.d(TAG, "   Total landmarks: ${allHandsLandmarks.size}")
+        Log.d(TAG, "   Confidence threshold: $confidenceThreshold")
 
         if (numDetectedHands == 0) {
             resetConsecutiveCount()
             return
         }
 
-        // ⭐ รวมข้อมูลจากทุกมือที่ตรวจพบ
-        val allHandsLandmarks = mutableListOf<Point3D>()
 
         for (handIndex in result.landmarks().indices) {
             val handLandmarks = result.landmarks()[handIndex]
@@ -89,7 +154,8 @@ class SignLanguageAnalyzer(
         if (recognitionResult != null) {
             Log.v(TAG, "Recognition -> ${recognitionResult.word}: ${String.format("%.1f", recognitionResult.confidence)}%")
 
-            val confidenceThreshold = 0.65f
+            val confidenceThreshold = 40f
+
 
             if (recognitionResult.confidence >= confidenceThreshold) {
                 Log.d(TAG, "✅ Above threshold: ${recognitionResult.word}")
@@ -135,16 +201,30 @@ class SignLanguageAnalyzer(
         // เพิ่ม Debug Log
         Log.d(TAG, "📊 Best: $word count=$consecutiveCount/$requiredConsecutiveDetections, lastAnnounced=$lastAnnouncedWord")
         if (consecutiveCount >= requiredConsecutiveDetections && word != lastAnnouncedWord ) {
+            // ✅ คำนวณเวลาที่ใช้
+            val elapsedTime = System.currentTimeMillis() - gestureStartTime
+            // ✅ บันทึกเฉพาะครั้งแรกของท่าทางนี้
+            if (!hasLoggedThisGesture) {
+                Log.d(TAG, "⏱️ RECOGNITION TIME for $word: ${elapsedTime}ms")
+                hasLoggedThisGesture = true // ✅ ทำครั้งเดียว
+            }
+
             onResult(word)
-            resetConsecutiveCount() // รีเซ็ตหลังจากส่งผลลัพธ์
+
+            lastRecognitionTime = System.currentTimeMillis()
             lastAnnouncedWord = word // "จำไว้" ว่าเราเพิ่งพูดคำนี้ไป
+
+            resetConsecutiveCount() // รีเซ็ตหลังจากส่งผลลัพธ์
+
+            // รีเซ็ตการจับเวลา
+            isGestureInProgress = false
         }
     }
 
     private fun resetConsecutiveCount() {
         consecutiveCount = 0
         lastDetectedWord = ""
-        lastAnnouncedWord = "" // ล้างคำ "หน่วยความจำ" ด้วย
+       // lastAnnouncedWord = "" // ล้างคำ "หน่วยความจำ" ด้วย
     }
 
     override fun analyze(image: ImageProxy) {
