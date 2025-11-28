@@ -219,7 +219,8 @@ class VideoProcessor(private val context: Context) {
         landmarks: HandLandmarkData,
         word: String
     ): Boolean {
-        if (landmarks.landmarks.size < 21) return true
+        // 1. เช็คพื้นฐาน: ถ้าจุดไม่ครบ 1 มือ (21 จุด) ให้ดีดออกทันที
+        if (landmarks.landmarks.size < 21) return false
 
         val wrist = landmarks.landmarks[0]
         val thumbTip = landmarks.landmarks[4]
@@ -244,7 +245,7 @@ class VideoProcessor(private val context: Context) {
                 val rightIndexTip = landmarks.landmarks[29]
 
                 // เงื่อนไข 1: มือทั้งสองอยู่ใกล้กัน (มาชนกัน)
-                val handsClose = kotlin.math.abs(leftIndexTip.x - rightIndexTip.x) < 0.15f &&
+                /*val handsClose = kotlin.math.abs(leftIndexTip.x - rightIndexTip.x) < 0.15f &&
                         kotlin.math.abs(leftIndexTip.y - rightIndexTip.y) < 0.15f
 
 
@@ -254,12 +255,13 @@ class VideoProcessor(private val context: Context) {
                 Log.d(TAG, "         handsClose=$handsClose (distance=${String.format("%.3f", kotlin.math.abs(leftIndexTip.x - rightIndexTip.x))})")
                 Log.d(TAG, "         RESULT=$result")
 
-                return result
+                return result*/
+                return true
             }
 
             "เครื่องบิน" -> {
 
-                // ✅ เงื่อนไข 3: นิ้วกลางและนิ้วนางพับลง
+               /* // ✅ เงื่อนไข 3: นิ้วกลางและนิ้วนางพับลง
                 val middleFolded = middleTip.y > middlePip.y - 0.03f
                 val ringFolded = ringTip.y > ringPip.y - 0.03f
 
@@ -273,12 +275,13 @@ class VideoProcessor(private val context: Context) {
                 Log.d(TAG, "         middleFolded=$middleFolded, ringFolded=$ringFolded")
                 Log.d(TAG, "         RESULT=$result")
 
-                return result
+                return result */
+                return true
             }
 
             "แจ้งความ" -> {
                 // ตรวจสอบการพับนิ้ว
-                val middleNotExtended = kotlin.math.abs(middleTip.y - wrist.y) <
+                /*val middleNotExtended = kotlin.math.abs(middleTip.y - wrist.y) <
                 kotlin.math.abs(middlePip.y - wrist.y) + 0.05f
                 val ringNotExtended = kotlin.math.abs(ringTip.y - wrist.y) <
                 kotlin.math.abs(ringPip.y - wrist.y) + 0.05f
@@ -295,12 +298,13 @@ class VideoProcessor(private val context: Context) {
                 Log.d(TAG, "      📝 แจ้งความ: middle=$middleNotExtended, ring=$ringNotExtended, " +
                         "raised=$handRaised, thumb=$thumbExtended, " +
                         "→ $result")
-                return result
+                return result */
+                return true
             }
 
             "ปวดหัว" -> {
                 // ✅ เงื่อนไข 1: มือยกสูง (ใกล้หน้า)
-                val handRaised = wrist.y < 0.35f  // เข้มงวดขึ้น
+                /*val handRaised = wrist.y < 0.35f  // เข้มงวดขึ้น
 
                 // ✅ เงื่อนไข 2: มือใกล้หน้า (แกน Z)
                 val handNearFace = kotlin.math.abs(indexTip.z - wrist.z) < 0.18f
@@ -321,7 +325,8 @@ class VideoProcessor(private val context: Context) {
                 Log.d(TAG, "         fingersFolded=$fingersFolded")
                 Log.d(TAG, "         RESULT=$result")
 
-                return result
+                return result */
+                return true
 
             }
 
@@ -332,7 +337,7 @@ class VideoProcessor(private val context: Context) {
                     return false
                 }
 
-                val leftWrist = landmarks.landmarks[0]
+                /*val leftWrist = landmarks.landmarks[0]
                 val rightWrist = landmarks.landmarks[21]
                 val leftIndexTip = landmarks.landmarks[8]
                 val rightIndexTip = landmarks.landmarks[29]
@@ -344,7 +349,8 @@ class VideoProcessor(private val context: Context) {
                 val result = handsNearNeck && handsClose
 
                 Log.d(TAG, "      🤕 เจ็บคอ check: nearNeck=$handsNearNeck, close=$handsClose → $result")
-                return result
+                return result */
+                return true
             }
 
             "หาย" -> {
@@ -358,13 +364,14 @@ class VideoProcessor(private val context: Context) {
                 val rightWrist = landmarks.landmarks[21]
 
                 // เงื่อนไข: มือแยกออกจากกัน (คล้ายท่าทาง "หาย")
-                val handsSeparated = kotlin.math.abs(leftWrist.x - rightWrist.x) > 0.3f
+                /*val handsSeparated = kotlin.math.abs(leftWrist.x - rightWrist.x) > 0.3f
                 val bothHandsRaised = leftWrist.y < 0.6f && rightWrist.y < 0.6f
 
                 val result = handsSeparated && bothHandsRaised
 
                 Log.d(TAG, "      🔍 หาย check: separated=$handsSeparated, raised=$bothHandsRaised → $result")
-                return result
+                return result */
+                return true
             }
 
             "บัตรประชาชน" -> {
@@ -380,14 +387,15 @@ class VideoProcessor(private val context: Context) {
                 val rightIndex = landmarks.landmarks[29]
 
                 // เงื่อนไข: มือทั้งสองทำท่าทางถือบัตร (นิ้วชี้และหัวแม่มือใกล้กัน)
-                val leftPinch = kotlin.math.abs(leftThumb.x - leftIndex.x) < 0.1f
+               /* val leftPinch = kotlin.math.abs(leftThumb.x - leftIndex.x) < 0.1f
                 val rightPinch = kotlin.math.abs(rightThumb.x - rightIndex.x) < 0.1f
                 val handsParallel = kotlin.math.abs(leftThumb.y - rightThumb.y) < 0.15f
 
                 val result = leftPinch && rightPinch && handsParallel
 
                 Log.d(TAG, "      🪪 บัตรประชาชน check: leftPinch=$leftPinch, rightPinch=$rightPinch → $result")
-                return result
+                return result */
+                return true
             }
 
             "หนังสือเดินทาง" -> {
@@ -407,7 +415,8 @@ class VideoProcessor(private val context: Context) {
                 val result = widerSpacing && bothHandsCenter
 
                 Log.d(TAG, "      📘 หนังสือเดินทาง check: wider=$widerSpacing, center=$bothHandsCenter → $result")
-                return result
+                // return result
+                return true
             }
 
             "ห้องน้ำ" -> {
@@ -437,7 +446,8 @@ class VideoProcessor(private val context: Context) {
                 Log.d(TAG, "         handCentered=$handCentered (x=${String.format("%.3f", wrist.x)})")
                 Log.d(TAG, "         RESULT=$result")
 
-                return result
+                // return result
+                return true
             }
 
             else -> return true
@@ -672,7 +682,10 @@ class VideoProcessor(private val context: Context) {
             val dx = current.landmarks[i].x - template.landmarks[i].x
             val dy = current.landmarks[i].y - template.landmarks[i].y
             val dz = current.landmarks[i].z - template.landmarks[i].z
-            sumOfSquaredDistances += dx * dx + dy * dy + dz * dz
+           // sumOfSquaredDistances += dx * dx + dy * dy + dz * dz
+            // ✅ แบบใหม่: ลดน้ำหนัก Z ลง 50% (คูณ 0.5)
+            // จะช่วยให้ท่า "ห้องน้ำ" และ "ช่วย" ตรวจจับง่ายขึ้นมากแม้ถือกล้องเอียง
+            sumOfSquaredDistances += dx * dx + dy * dy + (dz * dz * 0.5f)
         }
 
         val meanSquaredError = sumOfSquaredDistances / numLandmarks
