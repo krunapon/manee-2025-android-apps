@@ -121,12 +121,15 @@ class SignLanguageAnalyzer(
         // รวมข้อมูลจากทุกมือที่ตรวจพบ
         val allHandsLandmarks = mutableListOf<Point3D>()
 
-        for (handIndex in result.landmarks().indices) {
-            val handLandmarks = result.landmarks()[handIndex]
-            handLandmarks.forEach { landmark ->
+        // Sort hands by wrist X-coordinate (leftmost hand first)
+        val sortedHands = result.landmarks().sortedBy { hand ->
+            hand[0].x()  // Sort by wrist (landmark 0) x-position
+        }
+        for ((index, hand) in sortedHands.withIndex()) {
+            hand.forEach { landmark ->
                 allHandsLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
             }
-            Log.v(TAG, "   Hand ${handIndex + 1}: ${handLandmarks.size} landmarks")
+            Log.v(TAG, "   Hand ${index + 1} (sorted): ${hand.size} landmarks, wrist x=${hand[0].x()}")
         }
 
         Log.d(TAG, "   Total landmarks: ${allHandsLandmarks.size}")
@@ -135,15 +138,6 @@ class SignLanguageAnalyzer(
         if (numDetectedHands == 0) {
             resetConsecutiveCount()
             return
-        }
-
-
-        for (handIndex in result.landmarks().indices) {
-            val handLandmarks = result.landmarks()[handIndex]
-            handLandmarks.forEach { landmark ->
-                allHandsLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
-            }
-            Log.v(TAG, "   Hand ${handIndex + 1}: ${handLandmarks.size} landmarks")
         }
 
         val combinedHandData = HandLandmarkData(landmarks = allHandsLandmarks)

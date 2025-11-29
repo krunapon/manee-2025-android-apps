@@ -112,14 +112,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดโรงพยาบาล
             videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")), 2)
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}")), 1)
-            videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_master}")), 2)
-            /*videoProcessor.createTemplateFromVideos("ช่วย", listOf(
-                Uri.parse("android.resource://$packageName/${R.raw.help_master}"),
+           // videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_main}")), 2)
+            videoProcessor.createTemplateFromVideos("ช่วย", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
-                Uri.parse("android.resource://$packageName/${R.raw.help_test3}")
-            )) */
+                Uri.parse("android.resource://$packageName/${R.raw.help_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.help_test4}"),
+            ))
 
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")),2)
