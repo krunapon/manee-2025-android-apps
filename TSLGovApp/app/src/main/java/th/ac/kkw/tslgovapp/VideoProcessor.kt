@@ -56,9 +56,9 @@ class VideoProcessor(private val context: Context) {
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
                 .setNumHands(2)
-                .setMinHandDetectionConfidence(0.5f)
-                .setMinHandPresenceConfidence(0.5f)
-                .setMinTrackingConfidence(0.4f)
+                .setMinHandDetectionConfidence(0.3f)
+                .setMinHandPresenceConfidence(0.3f)
+                .setMinTrackingConfidence(0.32f)
                 .setRunningMode(RunningMode.IMAGE) // Change to IMAGE mode for frame processing
                 .build()
 
@@ -228,7 +228,64 @@ class VideoProcessor(private val context: Context) {
         val requiredHands = config?.numHands ?: 1
         val actualHands = landmarks.landmarks.size / 21
 
-        return actualHands >= requiredHands
+        // Basic hand count check
+        if (actualHands < requiredHands) {
+            return false
+        }
+
+        // Additional checks for 2-hand signs to distinguish them
+        if (actualHands >= 2 && landmarks.landmarks.size >= 42) {
+            val leftWristX = landmarks.landmarks[0].x   // Left hand wrist
+            val rightWristX = landmarks.landmarks[21].x // Right hand wrist
+            val leftWristY = landmarks.landmarks[0].y
+            val rightWristY = landmarks.landmarks[21].y
+
+            val horizontalDistance = kotlin.math.abs(leftWristX - rightWristX)
+            val verticalDistance = kotlin.math.abs(leftWristY - rightWristY)
+
+            Log.d(TAG, "   👐 Two-hand check for '$word': horizontalDist=${String.format("%.3f",
+                horizontalDistance)}, verticalDist=${String.format("%.3f", verticalDistance)}")
+
+            when (word) {
+                "บัตรประชาชน" -> {
+                    // ID Card: hands are horizontally apart (side by side)
+                    val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
+                    Log.d(TAG, "      บัตรประชาชน: isMoreHorizontal=$isMoreHorizontal")
+                    return isMoreHorizontal
+                }
+                "ช่วย" -> {
+                    // Help: one hand above the other (significant vertical separation)
+                    val hasVerticalSeparation = verticalDistance > 0.15f
+                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.7f
+                    val result = hasVerticalSeparation && isMoreVerticalThanHorizontal
+                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation,  moreVertical=$isMoreVerticalThanHorizontal)")
+                    return result
+                }
+                "เจ็บคอ" -> {
+                    // Neck ache: hands near neck (high position) and at same level (small vertical ```1distance)
+                    val handsHighUp = leftWristY < 0.4f && rightWristY < 0.4f
+                    val handsSameLevel = verticalDistance < 0.15f
+                    val result = handsHighUp && handsSameLevel
+                    Log.d(TAG, "      เจ็บคอ: result=$result (highUp=$handsHighUp,  sameLevel=$handsSameLevel, leftY=${String.format("%.3f", leftWristY)}, rightY=${String.format("%.3f",
+                        rightWristY)})")
+                    return result
+                }
+                "หนังสือเดินทาง" -> {
+                    // Passport: thumbs are more apart horizontally (like open book)
+                    val leftThumbX = landmarks.landmarks[4].x   // Left hand thumb tip
+                    val rightThumbX = landmarks.landmarks[25].x // Right hand thumb tip (21 + 4)
+                    val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
+                    val handsAtSameLevel = verticalDistance < 0.25f
+                    val thumbsWideApart = thumbHorizontalDistance > 0.35f
+                    val result = thumbsWideApart && handsAtSameLevel
+                    Log.d(TAG, "      หนังสือเดินทาง: result=$result (thumbsApart=$thumbsWideApart, thumbDist=${String.format("%.3f", thumbHorizontalDistance)}, sameLevel=$handsAtSameLevel)")
+                    return result
+                }
+
+            }
+        }
+
+        return true
 
     }
     private fun getTempFileFromUri(context: Context, uri: Uri): String? {
@@ -302,8 +359,14 @@ class VideoProcessor(private val context: Context) {
         for ((label, templates) in signTemplates) {
             // Skip if hand count doesn't match
             val requiredHands = templates.firstOrNull()?.numHands ?: 1
-            if (requiredHands > numDetectedHands) {
+            if (requiredHands != numDetectedHands) {
                 Log.d(TAG, "   ❌ '$label' skipped: needs $requiredHands hands, got $numDetectedHands")
+                continue
+            }
+
+            // Check gesture characteristics (hand position, alignment, etc.)
+            if (!checkGestureCharacteristics(currentGestureLandmarks, label)) {
+                Log.d(TAG, "   ❌ '$label' skipped: gesture characteristics don't match")
                 continue
             }
 
@@ -338,15 +401,21 @@ class VideoProcessor(private val context: Context) {
                 minDistance = bestDistanceForSign
                 bestMatchLabel = label
 
-                val maxDistance = if (requiredHands == 2) 2.5f else 2.0f
+                val maxDistance = if (requiredHands == 2) 3.5f else 2.0f
                 bestConfidence = max(0.0f, (1.0f - minDistance / maxDistance) * 100)
             }
         }
 
         if (bestMatchLabel != null) {
-            val minConfidenceThreshold = 25f  // Lower threshold since we have better matching
+            // Use different thresholds: 2-hand signs need higher confidence
+            val requiredHands = signTemplates[bestMatchLabel]?.firstOrNull()?.numHands ?: 1
+            val minConfidenceThreshold = if (requiredHands == 2) {
+                50f  // Two-hand signs: stricter threshold
+            } else {
+                40f  // Single-hand signs
+            }
 
-            Log.d(TAG, "🎯 Best: $bestMatchLabel (${String.format("%.1f%%", bestConfidence)})")
+            Log.d(TAG, "🎯 Best: $bestMatchLabel (${String.format("%.1f%%", bestConfidence)}) threshold=$minConfidenceThreshold%")
 
             if (bestConfidence >= minConfidenceThreshold) {
                 return RecognitionResult(

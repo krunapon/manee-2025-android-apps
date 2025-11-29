@@ -25,7 +25,11 @@ class SignLanguageAnalyzer(
     private var gestureStartTime = 0L
     private var isGestureInProgress = false
     private var hasLoggedThisGesture = false
+    private var maxHandsDetectedInGesture = 0
+    private var requireHandsRemoved = false
 
+    private var bestLandmarksInGesture: MutableList<Point3D> = mutableListOf()
+    private var isDetectionEnabled = false
     // ✅ เพิ่มตัวแปรเหล่านี้
     private var lastRecognitionTime = 0L
     private val RECOGNITION_COOLDOWN = 2000L
@@ -38,7 +42,9 @@ class SignLanguageAnalyzer(
     private var lastDetectedWord = ""
     private var lastAnnouncedWord = "" // ตัวแปรสำหรับจำคำที่พูดไปแล้ว
     private val requiredConsecutiveDetections = 2
-    private val ANNOUNCE_COOLDOWN = 1500L // ✅ 1.5 วินาที
+
+    private var detectionStartTime = 0L
+    private val DETECTION_DELAY = 1000L  // 1 second delay before detection starts
 
     init {
         setupMediaPipe()
@@ -54,8 +60,9 @@ class SignLanguageAnalyzer(
                 .setBaseOptions(baseOptions)
                 .setRunningMode(RunningMode.LIVE_STREAM)
                 .setNumHands(2)
-                .setMinHandDetectionConfidence(0.4f)
-                .setMinTrackingConfidence(0.4f)
+                .setMinHandDetectionConfidence(0.3f)
+                .setMinHandPresenceConfidence(0.3f)
+                .setMinTrackingConfidence(0.3f)
                 .setResultListener { result: HandLandmarkerResult, _: MPImage ->
                     processResults(result)
                 }
@@ -70,7 +77,35 @@ class SignLanguageAnalyzer(
         }
     }
 
+    fun startDetection() {
+        isDetectionEnabled = true
+        detectionStartTime = System.currentTimeMillis()  // Record when button was pressed
+        // Reset all blocking variables
+        requireHandsRemoved = false
+        lastAnnouncedWord = ""
+        isGestureInProgress = false
+        bestLandmarksInGesture.clear()
+        resetConsecutiveCount()
+        Log.d(TAG, "▶️ Detection ENABLED (all states reset)")
+    }
+
+    fun stopDetection() {
+        isDetectionEnabled = false
+        Log.d(TAG, "⏹️ Detection DISABLED")
+    }
     private fun processResults(result: HandLandmarkerResult) {
+        // ✅ Only process if detection is enabled
+        if (!isDetectionEnabled) {
+            return
+        }
+        // ✅ Wait for delay after button press
+        val timeSinceStart = System.currentTimeMillis() - detectionStartTime
+        if (timeSinceStart < DETECTION_DELAY) {
+            Log.v(TAG, "⏳ Waiting for detection delay (${DETECTION_DELAY - timeSinceStart}ms left)")
+            return
+        }
+
+
         val numDetectedHands = result.landmarks().size
 
         if (numDetectedHands == 0) {
@@ -82,16 +117,31 @@ class SignLanguageAnalyzer(
                     Log.d(TAG, "⏹️ Gesture ended (hands removed)")
                     isGestureInProgress = false
                     hasLoggedThisGesture = false
+                    //maxHandsDetectedInGesture = 0  // Only reset when gesture TRULY ends``
+                    // bestLandmarksInGesture.clear()
+                    requireHandsRemoved = false  // Reset when hands are removed
                 }
             }
             resetConsecutiveCount()
             return
         }
 
+        // ✅ Always track max hands FIRST (even during cooldown)
+        if (numDetectedHands > maxHandsDetectedInGesture) {
+            maxHandsDetectedInGesture = numDetectedHands
+            Log.d(TAG, "   Max hands updated: $maxHandsDetectedInGesture")
+        }
+
         // ✅ เช็คว่าอยู่ใน cooldown หรือไม่
         val timeSinceLastRecognition = System.currentTimeMillis() - lastRecognitionTime
         if (timeSinceLastRecognition < RECOGNITION_COOLDOWN) {
             Log.v(TAG, "🚫 In cooldown period (${RECOGNITION_COOLDOWN - timeSinceLastRecognition}ms left)")
+            return
+        }
+
+        // ✅ Require hands to be removed after successful recognition
+        if (requireHandsRemoved) {
+            Log.v(TAG, "🛑 Waiting for hands to be removed before next recognition")
             return
         }
 
@@ -102,6 +152,7 @@ class SignLanguageAnalyzer(
             hasLoggedThisGesture = false
             Log.d(TAG, "▶️ Gesture started")
         }
+
 
         Log.d(TAG, "🔍 Frame analysis:")
         Log.d(TAG, "   Detected: $numDetectedHands hand(s)")
@@ -133,17 +184,48 @@ class SignLanguageAnalyzer(
         }
 
         Log.d(TAG, "   Total landmarks: ${allHandsLandmarks.size}")
-        Log.d(TAG, "   Confidence threshold: $confidenceThreshold")
+        // ⭐ Store best landmarks when more hands detected
+        if (numDetectedHands >= maxHandsDetectedInGesture && allHandsLandmarks.size > bestLandmarksInGesture.size) {
+            bestLandmarksInGesture = allHandsLandmarks.toMutableList()
+            Log.d(TAG, "   ⭐ Best landmarks updated: ${bestLandmarksInGesture.size} landmarks, $maxHandsDetectedInGesture hands")
+        }
+
+
 
         if (numDetectedHands == 0) {
             resetConsecutiveCount()
             return
         }
 
-        val combinedHandData = HandLandmarkData(landmarks = allHandsLandmarks)
+
+        // ⭐ Wait minimum time to detect all hands before recognition
+        val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
+        val minGestureTime = 500L  // Wait 300ms to detect all hands
+
+        if (gestureElapsedTime < minGestureTime) {
+            Log.d(TAG, "   ⏳ Waiting for gesture to stabilize (${gestureElapsedTime}ms / 1${minGestureTime}ms)")
+            return
+        }
+
+        // ⭐ Use best landmarks (from when most hands were detected)
+        val landmarksForRecognition = if (bestLandmarksInGesture.size >= allHandsLandmarks.size) {
+            bestLandmarksInGesture
+        } else {
+            allHandsLandmarks
+        }
+        val combinedHandData = HandLandmarkData(landmarks = landmarksForRecognition)
 
         // ⭐ ส่งจำนวนมือที่ตรวจพบไปด้วย
-        val recognitionResult = recognizeGesture(combinedHandData, numDetectedHands)
+        val handsForRecognition = if (landmarksForRecognition.size >= 42) 2 else if (landmarksForRecognition.size
+            >= 21) 1 else 0
+        Log.d(TAG, "   Using hands for recognition: $handsForRecognition (current: $numDetectedHands, max:$maxHandsDetectedInGesture)")
+
+        // ⭐ If we ever detected 2 hands, only recognize 2-hand gestures
+        if (maxHandsDetectedInGesture == 2 && handsForRecognition == 1) {
+            Log.d(TAG, "   ⚠️ Skipping: detected 2 hands earlier, but only 1 hand landmarks now")
+            return
+        }
+        val recognitionResult = recognizeGesture(combinedHandData, handsForRecognition)
 
         if (recognitionResult != null) {
             Log.v(TAG, "Recognition -> ${recognitionResult.word}: ${String.format("%.1f", recognitionResult.confidence)}%")
@@ -195,6 +277,7 @@ class SignLanguageAnalyzer(
         // เพิ่ม Debug Log
         Log.d(TAG, "📊 Best: $word count=$consecutiveCount/$requiredConsecutiveDetections, lastAnnounced=$lastAnnouncedWord")
         if (consecutiveCount >= requiredConsecutiveDetections && word != lastAnnouncedWord ) {
+            requireHandsRemoved = true  // Require hands removal before next recognition
             // ✅ คำนวณเวลาที่ใช้
             val elapsedTime = System.currentTimeMillis() - gestureStartTime
             // ✅ บันทึกเฉพาะครั้งแรกของท่าทางนี้
@@ -204,6 +287,7 @@ class SignLanguageAnalyzer(
             }
 
             onResult(word)
+            stopDetection()  // ✅ Stop after successful recognition
 
             lastRecognitionTime = System.currentTimeMillis()
             lastAnnouncedWord = word // "จำไว้" ว่าเราเพิ่งพูดคำนี้ไป
@@ -212,6 +296,8 @@ class SignLanguageAnalyzer(
 
             // รีเซ็ตการจับเวลา
             isGestureInProgress = false
+            maxHandsDetectedInGesture = 0
+            bestLandmarksInGesture.clear()
         }
     }
 

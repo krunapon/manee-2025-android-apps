@@ -59,6 +59,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var isFrontCamera = true
     private var currentCameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private lateinit var videoProcessor: VideoProcessor
+    private var signLanguageAnalyzer: SignLanguageAnalyzer? = null  // Add this line
 
     private var isSpeakingCooldown = false // Flag บอกว่ากำลังอยู่ในช่วง Cooldown หรือไม่
     private val cooldownHandler = Handler(Looper.getMainLooper()) // ตัวหน่วงเวลา
@@ -118,9 +119,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test3}"),
-                Uri.parse("android.resource://$packageName/${R.raw.help_test4}"),
-            ))
-
+                Uri.parse("android.resource://$packageName/${R.raw.help_test4}")),2
+            )
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")),2)
             videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")), 2)
@@ -237,21 +237,16 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .setTargetRotation(previewView.display.rotation)
                     .build()
                     .also { analysis ->
-                        analysis.setAnalyzer(
-                            cameraExecutor,
-                            DebugSignLanguageAnalyzer(
+                            signLanguageAnalyzer  = SignLanguageAnalyzer(
                                 context = this,
                                 videoProcessor = videoProcessor,
                                 onResult = { result ->
                                     runOnUiThread {
                                         updateResult(result)
                                     }
-                                },
-                                onDebug = { debugInfo ->
-                                    Log.d(TAG, debugInfo)
                                 }
                             )
-                        )
+                            analysis.setAnalyzer(cameraExecutor, signLanguageAnalyzer!!)
                     }
 
                 val recorder = Recorder.Builder()
@@ -275,6 +270,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (isDetecting) {
             stopRecording()
             isDetecting = false
+            signLanguageAnalyzer?.stopDetection()  // Add this line
             btnStartStop.text = "เริ่มตรวจจับ"
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             resultText.text = "ทำภาษามือเพื่อเริ่มการแปล"
@@ -287,6 +283,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             startRecording()
             isDetecting = true
             btnStartStop.text = "หยุดตรวจจับ"
+            signLanguageAnalyzer?.startDetection()  // Add this line
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
             resultText.text = "กำลังตรวจจับภาษามือ..."
             largeResultText.text = "พร้อมรับภาษามือ"
