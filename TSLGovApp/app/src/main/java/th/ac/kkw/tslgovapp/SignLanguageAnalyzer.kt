@@ -85,7 +85,7 @@ class SignLanguageAnalyzer(
         isDetectionEnabled = true
         detectionStartTime = System.currentTimeMillis()  // Record when button was pressed
         // Reset all blocking variables
-        requireHandsRemoved = false
+        // requireHandsRemoved = false
         lastAnnouncedWord = ""
         lastRecognizedWordEver = ""
         isGestureInProgress = false
