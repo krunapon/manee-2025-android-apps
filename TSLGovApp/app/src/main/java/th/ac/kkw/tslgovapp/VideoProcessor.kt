@@ -254,11 +254,12 @@ class VideoProcessor(private val context: Context) {
                     return isMoreHorizontal
                 }
                 "ช่วย" -> {
-                    // Help: one hand above the other (significant vertical separation)
-                    val hasVerticalSeparation = verticalDistance > 0.15f
-                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.7f
+                    // Help: one hand above the other (relaxed constraints for better detection)
+                    // Reduced vertical separation requirement and horizontal ratio to be more forgiving
+                    val hasVerticalSeparation = verticalDistance > 0.08f  // Reduced from 0.15f
+                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.4f  // Reduced from 0.7f
                     val result = hasVerticalSeparation && isMoreVerticalThanHorizontal
-                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation,  moreVertical=$isMoreVerticalThanHorizontal)")
+                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation, vDist=${String.format("%.3f", verticalDistance)},  hDist=${String.format("%.3f", horizontalDistance)}, moreVertical=$isMoreVerticalThanHorizontal)")
                     return result
                 }
                 "เจ็บคอ" -> {
@@ -410,9 +411,9 @@ class VideoProcessor(private val context: Context) {
             // Use different thresholds: 2-hand signs need higher confidence
             val requiredHands = signTemplates[bestMatchLabel]?.firstOrNull()?.numHands ?: 1
             val minConfidenceThreshold = if (requiredHands == 2) {
-                50f  // Two-hand signs: stricter threshold
+                65f  // Two-hand signs: stricter threshold to avoid false positive
             } else {
-                40f  // Single-hand signs
+                55f  // Single-hand signs: increased to reduce false positive
             }
 
             Log.d(TAG, "🎯 Best: $bestMatchLabel (${String.format("%.1f%%", bestConfidence)}) threshold=$minConfidenceThreshold%")
