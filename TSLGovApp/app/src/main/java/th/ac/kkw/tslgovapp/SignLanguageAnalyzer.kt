@@ -88,7 +88,6 @@ class SignLanguageAnalyzer(
         requireHandsRemoved = false
         lastAnnouncedWord = ""
         lastRecognizedWordEver = ""
-        lastRecognitionTime = 0
         isGestureInProgress = false
         bestLandmarksInGesture.clear()
         maxHandsDetectedInGesture = 0
