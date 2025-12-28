@@ -284,6 +284,23 @@ class VideoProcessor(private val context: Context) {
                 }
 
             }
+        } else if (actualHands == 1 && landmarks.landmarks.size >= 21) {
+            val wristY = landmarks.landmarks[0].y
+            when (word) {
+                "ปวดหัว" -> {
+                    // Headache: hand should be high up (near head)
+                    val handIsHigh = wristY < 0.7f // Adjust threshold as needed
+                    Log.d(TAG, "ปวดหัว: handIsHigh=$handIsHigh (wristY=$wristY)")
+                    return handIsHigh
+                }
+                "ห้องน้ำ" -> {
+                    // Toilet: hand is lower (different position)
+                    // Or add other characteristics
+                    val handIsLower = wristY >= 0.6f // Adjust threshold as needed
+                    Log.d(TAG, "ห้องน้ำ: handIsLower=$handIsLower (wristY=$wristY)")
+                    return handIsLower
+                }
+            }
         }
 
         return true
