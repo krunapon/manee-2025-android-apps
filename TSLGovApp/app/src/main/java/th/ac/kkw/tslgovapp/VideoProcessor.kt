@@ -254,12 +254,14 @@ class VideoProcessor(private val context: Context) {
                     return isMoreHorizontal
                 }
                 "ช่วย" -> {
-                    // Help: one hand above the other (relaxed constraints for better detection)
-                    // Reduced vertical separation requirement and horizontal ratio to be more forgiving
-                    val hasVerticalSeparation = verticalDistance > 0.08f  // Reduced from 0.15f
-                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.4f  // Reduced from 0.7f
-                    val result = hasVerticalSeparation && isMoreVerticalThanHorizontal
-                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation, vDist=${String.format("%.3f", verticalDistance)},  hDist=${String.format("%.3f", horizontalDistance)}, moreVertical=$isMoreVerticalThanHorizontal)")
+                    // Help: one hand above the other with clear vertical separation
+                    // Key: hands should be vertically stacked (one above other), not side by side
+                    val hasVerticalSeparation = verticalDistance > 0.12f  // Clear vertical gap
+                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f  // Vertical dominates
+                    // Also ensure hands aren't too far apart horizontally (should be stacked, not spread)
+                    val handsAreStacked = horizontalDistance < 0.3f  // Hands roughly aligned horizontally
+                    val result = hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
+                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation, vDist=${String.format("%.3f", verticalDistance)},  hDist=${String.format("%.3f", horizontalDistance)}, moreVertical=$isMoreVerticalThanHorizontal, stacked=$handsAreStacked)")
                     return result
                 }
                 "เจ็บคอ" -> {
@@ -285,19 +287,30 @@ class VideoProcessor(private val context: Context) {
 
             }
         } else if (actualHands == 1 && landmarks.landmarks.size >= 21) {
+            val wristX = landmarks.landmarks[0].x
             val wristY = landmarks.landmarks[0].y
             when (word) {
                 "ปวดหัว" -> {
-                    // Headache: hand should be high up (near head)
-                    val handIsHigh = wristY < 0.7f // Adjust threshold as needed
-                    Log.d(TAG, "ปวดหัว: handIsHigh=$handIsHigh (wristY=$wristY)")
-                    return handIsHigh
+                    // Headache: hand near head/temple area
+                    // Key characteristics: high position, centered, pointing motion
+                    val handIsHigh = wristY < 0.6f  // Near head (stricter than before)
+                    val handIsCentered = wristX > 0.3f && wristX < 0.7f  // Centered horizontally (near head)
+                    val result = handIsHigh && handIsCentered
+                    Log.d(TAG, "      ปวดหัว: result=$result (high=$handIsHigh, centered=$handIsCentered, wristY=$wristY, wristX=$wristX)")
+                    return result
+                }
+                "เครื่องบิน" -> {
+                    // Airplane: hand typically lower than headache, may be more spread out
+                    // Exclude if hand is too high (that's headache territory)
+                    val handNotTooHigh = wristY >= 0.5f  // Airplane is typically lower
+                    val result = handNotTooHigh
+                    Log.d(TAG, "      เครื่องบิน: result=$result (notTooHigh=$handNotTooHigh, wristY=$wristY)")
+                    return result
                 }
                 "ห้องน้ำ" -> {
                     // Toilet: hand is lower (different position)
-                    // Or add other characteristics
-                    val handIsLower = wristY >= 0.6f // Adjust threshold as needed
-                    Log.d(TAG, "ห้องน้ำ: handIsLower=$handIsLower (wristY=$wristY)")
+                    val handIsLower = wristY >= 0.6f
+                    Log.d(TAG, "      ห้องน้ำ: result=$handIsLower (wristY=$wristY)")
                     return handIsLower
                 }
             }
