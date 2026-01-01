@@ -97,7 +97,7 @@ class SignLanguageAnalyzer(
     // Add these properties to the class
     private val recentLandmarks = mutableListOf<HandLandmarkData>()
     private val STABILITY_HISTORY_SIZE = 5
-    private val MAX_MOVEMENT_THRESHOLD = 0.08f  // Max allowed movement between frames
+    private val MAX_MOVEMENT_THRESHOLD = 0.25f  // Max allowed movement between frames
 
     /**
      * Check if hand position is stable (not moving too much)
@@ -443,6 +443,7 @@ class SignLanguageAnalyzer(
             // สนามบิน (Airport) - 3 words
             "เครื่องบิน" -> validateAirplaneGesture(landmarks, fingerStates)
             "บัตรประชาชน" -> validateIDCardGesture(landmarks, fingerStates)
+            "ห้องน้ำ" -> validateToiletGesture(landmarks, fingerStates)
             else -> true // Allow other words through
         }
     }
@@ -484,17 +485,23 @@ class SignLanguageAnalyzer(
         
         // Headache: hand should be in upper portion of frame
         val wristY = landmarks.landmarks[0].y
-        if (wristY > 0.6f) {
-            Log.v(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
+        if (wristY > 0.45f) {
+            Log.d(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
             return false
         }
-        
-        // Check that index finger is extended (pointing to head)
-        /*if (fingerStates.size >= 2 && fingerStates[1] != 1) {
-            Log.v(TAG, "   ปวดหัว: index finger not extended")
-            // Don't reject, just log (some variations might have different finger positions)
-        } */
-        
+
+        // Headache: fingertips together (few extended fingers)
+        // Count extended fingers (excluding thumb)
+        val extendedCount = if (fingerStates.size >= 5) {
+            fingerStates.slice(1..4).sum()  // index, middle, ring, pinky
+        } else 0
+
+        // Should have 0-1 fingers extended (all tips together)
+        if (extendedCount > 1) {
+            Log.d(TAG, "   ปวดหัว: too many fingers extended (count=$extendedCount)")
+            return false
+        }
+
         return true
     }
 
@@ -505,14 +512,21 @@ class SignLanguageAnalyzer(
         // Report is a single-hand gesture
         if (landmarks.landmarks.size > 21) {
             // If 2 hands detected, this might not be แจ้งความ
-            Log.v(TAG, "   แจ้งความ: detected ${landmarks.landmarks.size / 21} hands, expected 1")
+            Log.d(TAG, "   แจ้งความ: detected ${landmarks.landmarks.size / 21} hands, expected 1")
             return false
         }
 
-        // Hand should be in the upper portion (chest level) for report gesture
+        // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
         val wristY = landmarks.landmarks[0].y
-        if (wristY > 0.75f) {
-            Log.v(TAG, "   แจ้งความ: hand too low (wristY=$wristY), likely not report gesture")
+        val handAtFaceLevel = wristY > 0.65f
+        if (handAtFaceLevel) {
+            Log.d(TAG, "แจ้งความ hand not at face level (wristY=$wristY)")
+            return false
+        }
+
+        // Report: index finger should be extended
+        if (fingerStates.size >= 2 && fingerStates[1] != 1) {
+            Log.d(TAG, "   แจ้งความ: index finger not extended")
             return false
         }
 
@@ -538,14 +552,12 @@ class SignLanguageAnalyzer(
         val horizontalDistance = abs(hand1WristX - hand2WristX)
 
         // Key characteristics of "หาย" (Lost):
-        // 1. Large horizontal separation (hands spread apart side-by-side)
-        val hasLargeHorizontalSeparation = horizontalDistance > 0.20f
+        // 1. Some horizontal separation (hands spread apart side-by-side)
+        val hasHorizontalSeparation = horizontalDistance > 0.10f
 
-        // 2. Hands are close vertically (at similar height)
-        val handsSameLevel = verticalDistance < 0.20f
 
-        // 3. Horizontal dominates over vertical (side-by-side, not stacked)
-        val isMoreHorizontal = horizontalDistance > verticalDistance * 1.5f
+        // 2. NOT vertically stacked (distinguish from ช่วย)
+        val notVerticallyStacked = verticalDistance < 0.4f
 
         // 4. Both hands have fingers open (at least 3 fingers extended on each hand)
         val hand1FingersOpen = fingerStates.take(5).sum()
@@ -558,11 +570,11 @@ class SignLanguageAnalyzer(
         val handsAtChestLevel = hand1WristY > 0.25f && hand1WristY < 0.75f &&
                 hand2WristY > 0.25f && hand2WristY < 0.75f
 
-        val result = bothHandsOpen && handsAtChestLevel
-            // hasLargeHorizontalSeparation && handsSameLevel && isMoreHorizontal &&
+        //val result = bothHandsOpen && handsAtChestLevel && hasHorizontalSeparation && notVerticallyStacked
 
-        Log.v(TAG, "   หาย: result=$result (hSep=$hasLargeHorizontalSeparation, " +
-                "sameLevel=$handsSameLevel, moreHoriz=$isMoreHorizontal, " +
+        val result = handsAtChestLevel && notVerticallyStacked
+        Log.v(TAG, "   หาย: result=$result (hSep=$hasHorizontalSeparation, " +
+                "notVerticallyStacked=$notVerticallyStacked, " +
                 "bothOpen=$bothHandsOpen, chestLevel=$handsAtChestLevel, " +
                 "hDist=$horizontalDistance, vDist=$verticalDistance)")
 
@@ -621,6 +633,24 @@ class SignLanguageAnalyzer(
         val result = handsVeryHighUp && handsSameLevel
         Log.v(TAG, "   result=$result, handsVeryHighUp=$handsVeryHighUp, handsSameLevel=$handsSameLevel")
         return result
+    }
+
+    /**
+     * Validate "ห้องน้ำ" (Toilet) gesture
+     * Characteristics: hand at mid-to-lower level (waist/chest)
+     */
+    private fun validateToiletGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
+        if (landmarks.landmarks.size < 21) return true
+
+        // Toilet: hand at mid-to-lower level (waist/chest area)
+        val wristY = landmarks.landmarks[0].y
+        val handAtMidLevel = wristY > 0.60f && wristY < 0.85f
+
+        if (!handAtMidLevel) {
+            Log.v(TAG, "ห้องน้ำ: hand not at mid-level (wristY=$wristY)")
+            return false
+        }
+        return true
     }
 
     /**

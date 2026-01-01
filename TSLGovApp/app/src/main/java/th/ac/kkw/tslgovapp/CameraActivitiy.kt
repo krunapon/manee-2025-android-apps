@@ -53,6 +53,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var cameraExecutor: ExecutorService
 
     private var textToSpeech: TextToSpeech? = null
+    private var isTemplatesLoaded = false
     private var isDetecting = false
     private var lastRecognizedWord = ""
     private var currentVideoFile: File? = null
@@ -101,11 +102,28 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun loadSignLanguageTemplates() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val loadedFromCache = videoProcessor.loadTemplatesFromCache()
+            if (loadedFromCache) {
+                withContext(Dispatchers.Main) {
+                    isTemplatesLoaded = true
+                    btnStartStop.isEnabled = true
+                    Toast.makeText(this@CameraActivity, "ระบบพร้อมใช้งาน (โหลดจากแคช)", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "All templates loaded from cache successfully")
+                }
+            } else {
+                // No cache - laod from videos (slow)
+                Log.d(TAG, "No cache found, loading templates from videos...")
+                loadTemplatesFromVideos()
+            }
+        }
+    }
     /**
      * โหลด Template ของคำศัพท์ภาษามือทั้งหมดที่กำหนดไว้ในโครงการ
      * การทำงานทั้งหมดจะอยู่ใน Background Thread เพื่อป้องกันไม่ให้แอปค้าง
      */
-    private fun loadSignLanguageTemplates() {
+    private fun loadTemplatesFromVideos() {
         // ใช้ lifecycleScope.launch(Dispatchers.IO) เพื่อทำงานใน Background Thread
         lifecycleScope.launch(Dispatchers.IO) {
             Log.d(TAG, "Starting to load sign language templates...")
@@ -147,9 +165,18 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดสนามบิน/ขนส่ง
             videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
             videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane_tom}")),1)
-            videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(Uri.parse("android.resource://$packageName/${R.raw.toilet_ta}")), 1)
+            videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.toilet_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.toilet_test1}"),
+                ), 1)
+
+            // Save to cache for next time
+            videoProcessor.saveTemplatesToCache()
+
             // เมื่อโหลดเสร็จ สามารถแจ้งเตือนผู้ใช้ได้ (ต้องกลับมาที่ Main Thread)
             withContext(Dispatchers.Main) {
+                isTemplatesLoaded = true
+                btnStartStop.isEnabled = true
                 Toast.makeText(this@CameraActivity, "ระบบพร้อมใช้งาน", Toast.LENGTH_SHORT).show()
                 Log.d(TAG, "All templates loaded successfully.")
             }
@@ -161,6 +188,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         resultText = findViewById(R.id.result_text)
         largeResultText = findViewById(R.id.large_result_text)
         btnStartStop = findViewById(R.id.btn_start_stop)
+        btnStartStop.isEnabled = false
         btnRepeatSound = findViewById(R.id.btn_repeat_sound)
         btnBack = findViewById(R.id.btn_back)
         btnSwitchCamera = findViewById(R.id.btn_switch_camera)
@@ -168,6 +196,10 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun setupClickListeners() {
         btnStartStop.setOnClickListener {
+            if (!isTemplatesLoaded) {
+                Toast.makeText(this, "กำลังโหลดข้อมูล กรุณารอสักครู่...", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             toggleDetectionAndRecording()
         }
         btnRepeatSound.setOnClickListener {

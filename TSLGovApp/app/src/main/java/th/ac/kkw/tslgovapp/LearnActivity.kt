@@ -82,7 +82,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "ห้องน้ำ",
             meaning = "ห้องน้ำ",
-            videoFileName = "toilet_ta.mp4",
+            videoFileName = "toilet_main.mp4",
             category = "สนามบิน"
         )
     )

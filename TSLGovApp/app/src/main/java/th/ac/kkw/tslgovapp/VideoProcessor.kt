@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
-import kotlin.math.sqrt
+import kotlin.math.*
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
@@ -14,11 +14,8 @@ import com.google.mediapipe.framework.image.MPImage
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
 import th.ac.kkw.tslgovapp.model.RecognitionResult
-import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStream
-import kotlin.math.abs
-import kotlin.math.max
+import java.io.*
+
 
 class VideoProcessor(private val context: Context) {
 
@@ -39,7 +36,7 @@ class VideoProcessor(private val context: Context) {
         val landmarks: HandLandmarkData,
         val numHands: Int,  // เพิ่มข้อมูลจำนวนมือที่ใช้
         val sourceVideo: String = ""
-    )
+    ) : java.io.Serializable
 
     private val signTemplates = mutableMapOf<String,
             MutableList<SignTemplate>>()
@@ -72,6 +69,50 @@ class VideoProcessor(private val context: Context) {
         }
     }
 
+
+    /**
+     * Save templates to cache file
+     */
+    fun saveTemplatesToCache() {
+        try {
+            val signTemplatesFile = File(context.cacheDir, "cached_sign_templates.dat")
+
+            FileOutputStream(signTemplatesFile).use { fos ->
+                ObjectOutputStream(fos).use { oos ->
+                    oos.writeObject(signTemplates)
+                }
+            }
+
+            Log.d(TAG, "Templates cached successfully (${signTemplates.size} words)")
+        } catch (e: Exception) {
+            Log.e("VideoProcessor", "Failed to cache templates: ${e.message}")
+        }
+    }
+
+    fun loadTemplatesFromCache(): Boolean {
+        return try {
+            val signTemplatesFile = File(context.cacheDir, "cached_sign_templates.dat")
+            if (!signTemplatesFile.exists()) {
+                Log.d(TAG, "No template cache found")
+                return false
+            }
+
+            FileInputStream(signTemplatesFile).use { fis ->
+                ObjectInputStream(fis).use { ois ->
+                    val loaded = ois.readObject() as MutableMap<String, MutableList<SignTemplate>>
+                    signTemplates.clear()
+                    signTemplates.putAll(loaded)
+                }
+            }
+
+            val totalTemplates = signTemplates.values.sumOf {it.size}
+            Log.d(TAG, "Templates loaded from cache (${signTemplates.size} words, $totalTemplates templates)")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load templates from cache: ${e.message}")
+            false
+        }
+    }
     /**
      * Detects which hand is actively signing based on position and movement
      * Returns the index of the active hand (0 or 1)
@@ -225,7 +266,9 @@ class VideoProcessor(private val context: Context) {
         word: String
     ): Boolean {
         // Only check hand count - let template matching handle the rest
-        val config = SignLanguageConfig.getWordByName(word)
+        val config =
+
+            SignLanguageConfig.getWordByName(word)
         val requiredHands = config?.numHands ?: 1
         val actualHands = landmarks.landmarks.size / 21
         Log.d(TAG, "🔍 Checking hand count: $word required=$requiredHands, actual=$actualHands" +
@@ -252,8 +295,8 @@ class VideoProcessor(private val context: Context) {
             when (word) {
                 "หาย" -> {
                     // Key characteristics of "หาย" (Lost):
-                    // 1. Large horizontal separation (hands spread apart side-by-side)
-                    val hasLargeHorizontalSeparation = horizontalDistance > 0.10f
+                    // 1. horizontal separation (hands spread apart side-by-side)
+                    val hasHorizontalSeparation = horizontalDistance > 0.10f
 
                     // 2. Hands are close vertically (at similar height)
                     val handsSameLevel = verticalDistance < 0.20f
@@ -270,12 +313,15 @@ class VideoProcessor(private val context: Context) {
                     //    - "บัตรประชาชน" might be lower
                     val handsAtChestLevel = leftWristY > 0.25f && leftWristY < 0.75f &&
                             rightWristY > 0.25f && rightWristY < 0.75f
+                    // 2. NOT vertically stacked (distinguish from ช่วย)
+                    val notVerticallyStacked = verticalDistance < 0.4f
+                    // val result = bothHandsOpen && handsAtChestLevel && hasHorizontalSeparation
+                    val result = handsAtChestLevel && notVerticallyStacked
 
-                    val result = bothHandsOpen && handsAtChestLevel
-                                // hasLargeHorizontalSeparation && isMoreHorizontal
-
-                    Log.v(TAG, "   หาย: result=$result" +
-                            "chestLevel=$handsAtChestLevel, " +
+                    Log.d(TAG, "   หาย: result=$result" +
+                            "chestLevel=$handsAtChestLevel, bothHandsOpen=$bothHandsOpen " +
+                            "hasHorizontalSeparation=$hasHorizontalSeparation" +
+                            "notVerticallyStacked=$notVerticallyStacked" +
                             "hDist=$horizontalDistance, vDist=$verticalDistance)")
 
                     return result
@@ -293,7 +339,9 @@ class VideoProcessor(private val context: Context) {
                     val hasVerticalSeparation = verticalDistance > 0.12f
                     val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f
                     val handsAreStacked = horizontalDistance < 0.3f
-                    return handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
+                    Log.d(TAG, "handsHighEnough=$handsHighEnough, hasVerticalSeparation=$hasVerticalSeparation" +
+                    "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal, handsAreStacked=$handsAreStacked")
+                    return handsHighEnough && isMoreVerticalThanHorizontal && handsAreStacked
                 }
                 "เจ็บคอ" -> {
                     // Neck ache: hands near neck (high position) and at same level (small vertical ```1distance)
@@ -323,10 +371,11 @@ class VideoProcessor(private val context: Context) {
             when (word) {
                 "ปวดหัว" -> {
                     val wristY = landmarks.landmarks[0].y
-                    if (wristY > 0.6f) {
+                    if (wristY > 0.45f) {
                         Log.v(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
                         return false
                     }
+
                 }
                 "เครื่องบิน" -> {
                     // Airplane: hand typically lower than headache, may be more spread out
@@ -337,16 +386,22 @@ class VideoProcessor(private val context: Context) {
                     return result
                 }
                 "ห้องน้ำ" -> {
-                    // Toilet: hand is lower (different position)
-                    val handIsLower = wristY >= 0.6f
-                    Log.d(TAG, "      ห้องน้ำ: result=$handIsLower (wristY=$wristY)")
-                    return handIsLower
+                    // Toilet: hand at mid-to-lower level (waist/chest)
+                    // Not too high (different from ปวดหัว), not too low (hands at sides)
+                    val wristY = landmarks.landmarks[0].y
+                    val handsAtMidLevel = wristY > 0.6f && wristY < 0.85f
+                    if (!handsAtMidLevel) {
+                        Log.v(TAG, "ห้องน้ำ: hand not at mid-level (wristY=$wristY)")
+                        return false
+                    }
+                    return true
                 }
                 "แจ้งความ" -> {
-                    // Hand should be in the upper portion (chest level) for report gesture
+                    // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
                     val wristY = landmarks.landmarks[0].y
-                    if (wristY > 0.75f) {
-                        Log.v(TAG, "   แจ้งความ: hand too low (wristY=$wristY), likely not report gesture")
+                    val handAtFaceLevel = wristY > 0.65f
+                    if (handAtFaceLevel) {
+                        Log.d(TAG, "แจ้งความ hand not at face level (wristY=$wristY")
                         return false
                     }
 
