@@ -17,6 +17,7 @@ import th.ac.kkw.tslgovapp.model.RecognitionResult
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import kotlin.math.abs
 import kotlin.math.max
 
 class VideoProcessor(private val context: Context) {
@@ -24,7 +25,7 @@ class VideoProcessor(private val context: Context) {
     // 🔧 แยก Template เป็นสองประเภท
     private val singleHandTemplates = mutableMapOf<String, HandLandmarkData>()
     private val doubleHandTemplates = mutableMapOf<String, HandLandmarkData>()
-
+    private val featureExtractor = HandFeatureExtractor()
     companion object {
         private const val TAG = "VideoProcessor"
         private const val MODEL_FILE = "hand_landmarker.task" // ✅ Correct path
@@ -227,7 +228,8 @@ class VideoProcessor(private val context: Context) {
         val config = SignLanguageConfig.getWordByName(word)
         val requiredHands = config?.numHands ?: 1
         val actualHands = landmarks.landmarks.size / 21
-
+        Log.d(TAG, "🔍 Checking hand count: $word required=$requiredHands, actual=$actualHands" +
+                "landmarks size = ${landmarks.landmarks.size}")
         // Basic hand count check
         if (actualHands < requiredHands) {
             return false
@@ -242,11 +244,44 @@ class VideoProcessor(private val context: Context) {
 
             val horizontalDistance = kotlin.math.abs(leftWristX - rightWristX)
             val verticalDistance = kotlin.math.abs(leftWristY - rightWristY)
+            val fingerStates = featureExtractor.detectFingerStates(landmarks)
 
             Log.d(TAG, "   👐 Two-hand check for '$word': horizontalDist=${String.format("%.3f",
                 horizontalDistance)}, verticalDist=${String.format("%.3f", verticalDistance)}")
 
             when (word) {
+                "หาย" -> {
+                    // Key characteristics of "หาย" (Lost):
+                    // 1. Large horizontal separation (hands spread apart side-by-side)
+                    val hasLargeHorizontalSeparation = horizontalDistance > 0.10f
+
+                    // 2. Hands are close vertically (at similar height)
+                    val handsSameLevel = verticalDistance < 0.20f
+
+                    // 3. Horizontal dominates over vertical (side-by-side, not stacked)
+                    val isMoreHorizontal = horizontalDistance > verticalDistance * 1.5f
+
+                    val hand1FingersOpen = fingerStates.take(5).sum()
+                    val hand2FingersOpen = if (fingerStates.size >= 10) fingerStates.slice(5..9).sum() else 0
+                    val bothHandsOpen = hand1FingersOpen >= 3 && hand2FingersOpen >= 3
+
+                    // 5. Distinguish from "บัตรประชาชน" (ID card):
+                    //    - "หาย" is at chest level (Y around 0.3-0.7)
+                    //    - "บัตรประชาชน" might be lower
+                    val handsAtChestLevel = leftWristY > 0.25f && leftWristY < 0.75f &&
+                            rightWristY > 0.25f && rightWristY < 0.75f
+
+                    val result = bothHandsOpen && handsAtChestLevel
+                                // hasLargeHorizontalSeparation && isMoreHorizontal
+
+                    Log.v(TAG, "   หาย: result=$result" +
+                            "chestLevel=$handsAtChestLevel, " +
+                            "hDist=$horizontalDistance, vDist=$verticalDistance)")
+
+                    return result
+
+
+                }
                 "บัตรประชาชน" -> {
                     // ID Card: hands are horizontally apart (side by side)
                     val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
@@ -254,15 +289,11 @@ class VideoProcessor(private val context: Context) {
                     return isMoreHorizontal
                 }
                 "ช่วย" -> {
-                    // Help: one hand above the other with clear vertical separation
-                    // Key: hands should be vertically stacked (one above other), not side by side
-                    val hasVerticalSeparation = verticalDistance > 0.12f  // Clear vertical gap
-                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f  // Vertical dominates
-                    // Also ensure hands aren't too far apart horizontally (should be stacked, not spread)
-                    val handsAreStacked = horizontalDistance < 0.3f  // Hands roughly aligned horizontally
-                    val result = hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
-                    Log.d(TAG, "      ช่วย: result=$result (vSep=$hasVerticalSeparation, vDist=${String.format("%.3f", verticalDistance)},  hDist=${String.format("%.3f", horizontalDistance)}, moreVertical=$isMoreVerticalThanHorizontal, stacked=$handsAreStacked)")
-                    return result
+                    val handsHighEnough = leftWristY < 0.65f && rightWristY < 0.65f
+                    val hasVerticalSeparation = verticalDistance > 0.12f
+                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f
+                    val handsAreStacked = horizontalDistance < 0.3f
+                    return handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
                 }
                 "เจ็บคอ" -> {
                     // Neck ache: hands near neck (high position) and at same level (small vertical ```1distance)
@@ -291,13 +322,11 @@ class VideoProcessor(private val context: Context) {
             val wristY = landmarks.landmarks[0].y
             when (word) {
                 "ปวดหัว" -> {
-                    // Headache: hand near head/temple area
-                    // Key characteristics: high position, centered, pointing motion
-                    val handIsHigh = wristY < 0.6f  // Near head (stricter than before)
-                    val handIsCentered = wristX > 0.3f && wristX < 0.7f  // Centered horizontally (near head)
-                    val result = handIsHigh && handIsCentered
-                    Log.d(TAG, "      ปวดหัว: result=$result (high=$handIsHigh, centered=$handIsCentered, wristY=$wristY, wristX=$wristX)")
-                    return result
+                    val wristY = landmarks.landmarks[0].y
+                    if (wristY > 0.6f) {
+                        Log.v(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
+                        return false
+                    }
                 }
                 "เครื่องบิน" -> {
                     // Airplane: hand typically lower than headache, may be more spread out
@@ -312,6 +341,16 @@ class VideoProcessor(private val context: Context) {
                     val handIsLower = wristY >= 0.6f
                     Log.d(TAG, "      ห้องน้ำ: result=$handIsLower (wristY=$wristY)")
                     return handIsLower
+                }
+                "แจ้งความ" -> {
+                    // Hand should be in the upper portion (chest level) for report gesture
+                    val wristY = landmarks.landmarks[0].y
+                    if (wristY > 0.75f) {
+                        Log.v(TAG, "   แจ้งความ: hand too low (wristY=$wristY), likely not report gesture")
+                        return false
+                    }
+
+                    return true
                 }
             }
         }

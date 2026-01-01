@@ -87,9 +87,50 @@ class SignLanguageAnalyzer(
     private var lastAnnouncedTime = 0L
     private val ANNOUNCE_COOLDOWN = 2000L  // Increased from 200ms to prevent re-announcement
 
+    // session tracking to prevent stale frames from being processed
+    private var currentSessionId = 0L
+    private var detectionStartTime = 0L
+
     // Feature extractor for improved recognition
     private val featureExtractor = HandFeatureExtractor()
-    
+
+    // Add these properties to the class
+    private val recentLandmarks = mutableListOf<HandLandmarkData>()
+    private val STABILITY_HISTORY_SIZE = 5
+    private val MAX_MOVEMENT_THRESHOLD = 0.08f  // Max allowed movement between frames
+
+    /**
+     * Check if hand position is stable (not moving too much)
+     * Helps prevent false positives from transitional movements
+     */
+    private fun isHandStable(currentLandmarks: HandLandmarkData): Boolean {
+        if (recentLandmarks.isEmpty()) {
+            recentLandmarks.add(currentLandmarks)
+            return false  // Not enough history yet
+        }
+
+        // Compare current wrist position with previous
+        val prevWrist = recentLandmarks.last().landmarks[0]
+        val currWrist = currentLandmarks.landmarks[0]
+
+        val movement = sqrt(
+            (currWrist.x - prevWrist.x).pow(2) +
+                    (currWrist.y - prevWrist.y).pow(2)
+        )
+
+        // Update history
+        recentLandmarks.add(currentLandmarks)
+        if (recentLandmarks.size > STABILITY_HISTORY_SIZE) {
+            recentLandmarks.removeAt(0)
+        }
+
+        val isStable = movement < MAX_MOVEMENT_THRESHOLD
+        if (!isStable) {
+            Log.v(TAG, "   Hand moving: movement=$movement (threshold=$MAX_MOVEMENT_THRESHOLD)")
+        }
+
+        return isStable
+    }
     init {
         setupHandLandmarker()
     }
@@ -128,9 +169,15 @@ class SignLanguageAnalyzer(
         isDetectionActive = true
         resetConsecutiveCount()
         lastAnnouncedWord = ""
+        // Ensure the stability check starts fresh and doesn't use old hand positions
+        // Start a new session and clear landmarks history
+        currentSessionId++
+        detectionStartTime = System.currentTimeMillis()
+        recentLandmarks.clear()
+
         isGestureInProgress = false
         gestureStartTime = 0L
-        Log.d(TAG, "🟢 Detection started")
+        Log.d(TAG, "🟢 Detection started (session $currentSessionId)")
     }
 
     /**
@@ -198,15 +245,18 @@ class SignLanguageAnalyzer(
             return if (wristY < 0.8f) 1 else 0
         }
 
-        // Two hands: use stricter threshold
+        // Two hands: use balanced threshold
+        // - Stricter to filter hands at sides (Y > 0.75 = too low)
+        // - Lenient enough for 2-hand gestures where bottom hand might be at waist level
         val wristY0 = hands[0][0].y
         val wristY1 = hands[1][0].y
 
-        val threshold = 0.7f // Stricter threshold for 2-hand gestures
+        // Threshold: hands below 0.75 are considered "at side" and not active
+        val threshold = 0.75f
         val bothHandsActive = wristY0 < threshold && wristY1 < threshold
         val atLeastOneActive = wristY0 < threshold || wristY1 < threshold
 
-        Log.v(TAG, "   Active hands: wrists Y0=$wristY0, Y1=$wristY1, both=$bothHandsActive, atLeastOne=$atLeastOneActive")
+        Log.v(TAG, "   Active hands: wrists Y0=$wristY0, Y1=$wristY1, threshold=$threshold, both=$bothHandsActive, atLeastOne=$atLeastOneActive")
 
         return when {
             bothHandsActive -> 2
@@ -221,6 +271,14 @@ class SignLanguageAnalyzer(
     private fun processResults(result: HandLandmarkerResult) {
         if (!isDetectionActive) return
 
+        // Reject frames from before detection started (prevent stale frame processing)
+        // MediaPipe LIVE_STREAM may deliver frames that were queued before startDetection() was called
+        // We only accept frames captured after detection started (+ a small buffer for latency)
+        val frameTimestamp = result.timestampMs()
+        if (frameTimestamp < detectionStartTime - 100) {
+            Log.v(TAG, "Ignoring stale frame from before detection (t=$frameTimestamp, start=$detectionStartTime)")
+            return
+        }
         val landmarks = result.landmarks()
 
         if (landmarks.isEmpty()) {
@@ -242,7 +300,7 @@ class SignLanguageAnalyzer(
         }
 
         // ============================================================
-        // HAND VALIDATION - Filter out false detections
+        // 1. HAND VALIDATION - Filter out false detections
         // ============================================================
 
         // Sort hands by wrist X-coordinate (leftmost first)
@@ -297,7 +355,7 @@ class SignLanguageAnalyzer(
         val handLandmarkData = HandLandmarkData(activeHandsLandmarks)
 
         // ============================================================
-        // GESTURE TIMING CHECK - Wait for gesture to stabilize
+        // 2. GESTURE TIMING CHECK - Wait for gesture to stabilize
         // ============================================================
 
         val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
@@ -306,6 +364,15 @@ class SignLanguageAnalyzer(
         if (gestureElapsedTime < minGestureTime) {
             Log.v(TAG, "   ⏳ Waiting for gesture to stabilize (${gestureElapsedTime}ms / ${minGestureTime}ms)")
             return
+        }
+
+        // ============================================================
+        // ADD STABILITY CHECK HERE (NEW)
+        // ============================================================
+        if (!isHandStable(handLandmarkData)) {
+            Log.v(TAG, "   🔄 Hand moving, skipping recognition")
+            resetConsecutiveCount()
+            return  // Skip recognition while hand is moving
         }
 
         // ============================================================
@@ -363,10 +430,18 @@ class SignLanguageAnalyzer(
         
         // Word-specific angle validation
         return when (word) {
-            "เครื่องบิน" -> validateAirplaneGesture(landmarks, fingerStates)
+            // โรงพยาบาล (Hospital) - 3 words
             "ปวดหัว" -> validateHeadacheGesture(landmarks, fingerStates)
-            "แจ้งความ" -> validateReportGesture(landmarks, fingerStates)
             "ช่วย" -> validateHelpGesture(landmarks, fingerStates)
+            "เจ็บคอ" -> validateSoreThroatGesture(landmarks, fingerStates)
+
+
+            // สถานีตำรวจ (Police) - 3 words
+            "แจ้งความ" -> validateReportGesture(landmarks, fingerStates)
+            "หาย" -> validateLostGesture(landmarks, fingerStates)
+
+            // สนามบิน (Airport) - 3 words
+            "เครื่องบิน" -> validateAirplaneGesture(landmarks, fingerStates)
             "บัตรประชาชน" -> validateIDCardGesture(landmarks, fingerStates)
             else -> true // Allow other words through
         }
@@ -415,10 +490,10 @@ class SignLanguageAnalyzer(
         }
         
         // Check that index finger is extended (pointing to head)
-        if (fingerStates.size >= 2 && fingerStates[1] != 1) {
+        /*if (fingerStates.size >= 2 && fingerStates[1] != 1) {
             Log.v(TAG, "   ปวดหัว: index finger not extended")
             // Don't reject, just log (some variations might have different finger positions)
-        }
+        } */
         
         return true
     }
@@ -433,30 +508,119 @@ class SignLanguageAnalyzer(
             Log.v(TAG, "   แจ้งความ: detected ${landmarks.landmarks.size / 21} hands, expected 1")
             return false
         }
+
+        // Hand should be in the upper portion (chest level) for report gesture
+        val wristY = landmarks.landmarks[0].y
+        if (wristY > 0.75f) {
+            Log.v(TAG, "   แจ้งความ: hand too low (wristY=$wristY), likely not report gesture")
+            return false
+        }
+
         return true
     }
 
     /**
+     * Validate "หาย" (Lost) gesture
+     */
+    private fun validateLostGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
+        // Must have 2 hands
+        if (landmarks.landmarks.size < 42) {
+            Log.v(TAG, "   หาย: need 2 hands, got ${landmarks.landmarks.size / 21}")
+            return false
+        }
+
+        val hand1WristY = landmarks.landmarks[0].y
+        val hand2WristY = landmarks.landmarks[21].y
+        val hand1WristX = landmarks.landmarks[0].x
+        val hand2WristX = landmarks.landmarks[21].x
+
+        val verticalDistance = abs(hand1WristY - hand2WristY)
+        val horizontalDistance = abs(hand1WristX - hand2WristX)
+
+        // Key characteristics of "หาย" (Lost):
+        // 1. Large horizontal separation (hands spread apart side-by-side)
+        val hasLargeHorizontalSeparation = horizontalDistance > 0.20f
+
+        // 2. Hands are close vertically (at similar height)
+        val handsSameLevel = verticalDistance < 0.20f
+
+        // 3. Horizontal dominates over vertical (side-by-side, not stacked)
+        val isMoreHorizontal = horizontalDistance > verticalDistance * 1.5f
+
+        // 4. Both hands have fingers open (at least 3 fingers extended on each hand)
+        val hand1FingersOpen = fingerStates.take(5).sum()
+        val hand2FingersOpen = if (fingerStates.size >= 10) fingerStates.slice(5..9).sum() else 0
+        val bothHandsOpen = hand1FingersOpen >= 3 && hand2FingersOpen >= 3
+
+        // 5. Distinguish from "บัตรประชาชน" (ID card):
+        //    - "หาย" is at chest level (Y around 0.3-0.7)
+        //    - "บัตรประชาชน" might be lower
+        val handsAtChestLevel = hand1WristY > 0.25f && hand1WristY < 0.75f &&
+                hand2WristY > 0.25f && hand2WristY < 0.75f
+
+        val result = bothHandsOpen && handsAtChestLevel
+            // hasLargeHorizontalSeparation && handsSameLevel && isMoreHorizontal &&
+
+        Log.v(TAG, "   หาย: result=$result (hSep=$hasLargeHorizontalSeparation, " +
+                "sameLevel=$handsSameLevel, moreHoriz=$isMoreHorizontal, " +
+                "bothOpen=$bothHandsOpen, chestLevel=$handsAtChestLevel, " +
+                "hDist=$horizontalDistance, vDist=$verticalDistance)")
+
+        return result
+
+    }
+    /**
      * Validate "ช่วย" (Help) gesture
-     * Characteristics: Two hands, one above the other
+     * Characteristics: Two hands, one above the other, palms open
      */
     private fun validateHelpGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         if (landmarks.landmarks.size < 42) {
             Log.v(TAG, "   ช่วย: need 2 hands, got ${landmarks.landmarks.size / 21}")
             return false
         }
-        
+
         // Check vertical alignment (one hand above the other)
         val hand1WristY = landmarks.landmarks[0].y
         val hand2WristY = landmarks.landmarks[21].y
+        val hand1WristX = landmarks.landmarks[0].x
+        val hand2WristX = landmarks.landmarks[21].x
+
+        // Help: hands must be in upper position (less than 0.65) of frame (not at sides)
+        val handsHighEnough = hand1WristY < 0.65f && hand2WristY < 0.65f
+
         val verticalDistance = abs(hand1WristY - hand2WristY)
-        
-        if (verticalDistance < 0.1f) {
-            Log.v(TAG, "   ช่วย: hands not vertically separated (vDist=$verticalDistance)")
-            return false
-        }
-        
-        return true
+        val horizontalDistance = abs(hand1WristX - hand2WristX)
+
+        val hasVerticalSeparation = verticalDistance > 0.12f
+        val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f
+        val handsAreStacked = horizontalDistance < 0.3f
+        val result = handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
+
+        Log.v(TAG, "result=$result, handsHighEnough=$handsHighEnough " +
+                "hasVerticalSeparation=$hasVerticalSeparation" +
+                "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal" +
+                "handsAreStacked=$handsAreStacked")
+        return result
+
+    }
+
+    /**
+     * Validate "เจ็บคอ" (Sore Throat) gesture
+     * Characteristics: Hand at throat level, fingers touching neck
+     */
+    private fun validateSoreThroatGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
+        if (landmarks.landmarks.size < 21) return true
+
+        val hand1WristY = landmarks.landmarks[0].y
+        val hand2WristY = landmarks.landmarks[21].y
+        val verticalDistance = abs(hand1WristY - hand2WristY)
+
+        // Sore throat : hands must be very high up (near neck/face), not chest level
+        val handsVeryHighUp = hand1WristY < 0.3f && hand2WristY < 0.3f
+        val handsSameLevel = verticalDistance < 0.15f
+        val result = handsVeryHighUp && handsSameLevel
+        Log.v(TAG, "   result=$result, handsVeryHighUp=$handsVeryHighUp, handsSameLevel=$handsSameLevel")
+        return result
     }
 
     /**

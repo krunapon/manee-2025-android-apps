@@ -128,9 +128,21 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.help_test4}")),2
             )
             // หมวดสถานีตำรวจ
-            videoProcessor.createTemplateFromVideos("หาย", listOf(Uri.parse("android.resource://$packageName/${R.raw.lost}")),2)
+            videoProcessor.createTemplateFromVideos("หาย", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.lost}"),
+                Uri.parse("android.resource://$packageName/${R.raw.lost_test1}"),
+            //    Uri.parse("android.resource://$packageName/${R.raw.lost_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.lost_test3}"),
+             //   Uri.parse("android.resource://$packageName/${R.raw.lost_test4}"),
+            ),2)
             videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")), 2)
-            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(Uri.parse("android.resource://$packageName/${R.raw.report_main}")), 1)
+            videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.report_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.report_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.report_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.report_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.report_test4}"),
+                ), 1)
 
             // หมวดสนามบิน/ขนส่ง
             videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
