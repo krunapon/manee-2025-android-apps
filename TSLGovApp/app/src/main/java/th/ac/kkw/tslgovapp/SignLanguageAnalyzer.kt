@@ -97,7 +97,11 @@ class SignLanguageAnalyzer(
     // Add these properties to the class
     private val recentLandmarks = mutableListOf<HandLandmarkData>()
     private val STABILITY_HISTORY_SIZE = 5
-    private val MAX_MOVEMENT_THRESHOLD = 0.25f  // Max allowed movement between frames
+    // Max allowed movement between frames
+    // The larger value it is, the more chance that false positive will occur
+    // The smaller value it is, the more chance that headache may not be detected
+    private val MAX_MOVEMENT_THRESHOLD = 0.15f
+
 
     /**
      * Check if hand position is stable (not moving too much)
@@ -359,7 +363,7 @@ class SignLanguageAnalyzer(
         // ============================================================
 
         val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
-        val minGestureTime = 500L  // Wait 500ms for gesture to stabilize
+        val minGestureTime = 300L  // Wait 500ms for gesture to stabilize
 
         if (gestureElapsedTime < minGestureTime) {
             Log.v(TAG, "   ⏳ Waiting for gesture to stabilize (${gestureElapsedTime}ms / ${minGestureTime}ms)")

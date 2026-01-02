@@ -376,6 +376,19 @@ class VideoProcessor(private val context: Context) {
                         return false
                     }
 
+                    // Reject if index finger is pointing up (that's report, not headache)
+                    val indexTipY = landmarks.landmarks[8].y
+                    val indexPointingUp = indexTipY < wristY - 0.05f
+                    val middleTipY = landmarks.landmarks[12].y // Middle finger tip
+                    val ringTipY = landmarks.landmarks[16].y // Ring finger tip
+                    val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
+                    val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
+                    Log.d(TAG, "ปวดหัว indexIsHighest=$indexIsHighest indexPointngUp=$indexPointingUp")
+                    if (indexIsHighest || indexPointingUp) {
+                        Log.v(TAG, "ปวดหัว: index finger is pointing up or index is highest , rejecting (wristY=$wristY, indexTipY=$indexTipY")
+                        return false
+                    }
+                    return true
                 }
                 "เครื่องบิน" -> {
                     // Airplane: hand typically lower than headache, may be more spread out
@@ -398,14 +411,33 @@ class VideoProcessor(private val context: Context) {
                 }
                 "แจ้งความ" -> {
                     // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
-                    val wristY = landmarks.landmarks[0].y
-                    val handAtFaceLevel = wristY > 0.65f
+                   val wristY = landmarks.landmarks[0].y
+                    /*val handAtFaceLevel = wristY < 0.50f
                     if (handAtFaceLevel) {
-                        Log.d(TAG, "แจ้งความ hand not at face level (wristY=$wristY")
+                        Log.d(TAG, "แจ้งความ hand too high, in headache zone (wristY=$wristY")
                         return false
-                    }
+                    }*/
+                    // Report: index finger should point up (key distinguishing feature from headache)
+                    val indexTipY = landmarks.landmarks[8].y // Index finger tip
+                    val middleTipY = landmarks.landmarks[12].y // Middle finger tip
+                    val ringTipY = landmarks.landmarks[16].y // Ring finger tip
+                    val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
 
-                    return true
+                    // Check 1: Index figer tip is significantly higher than wrist (pointing up)
+                    val indexPointingUp = indexTipY < wristY - 0.05f
+
+                    // Check 2: Index finger tip is the highest (or tied for hightest) among fingers
+                    val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
+
+                    // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
+                    val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
+
+                    // val result = indexPointingUp && indexIsHighest && indexHigherThanMiddle
+                    val result = indexIsHighest
+
+                    Log.d(TAG, "แจ้งความ indexPointingUp=$indexPointingUp, indexIsHighest=$indexIsHighest," +
+                            "indexHigherThanMiddle=$indexHigherThanMiddle (wristY = $wristY, indexTipY = $indexTipY)")
+                    return result
                 }
             }
         }
