@@ -66,6 +66,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val cooldownHandler = Handler(Looper.getMainLooper()) // ตัวหน่วงเวลา
     private val SPEAKING_COOLDOWN_DELAY = 2500L // ระยะเวลา Cooldown (2.5 วินาที) ลองปรับค่านี้ได้
 
+    // For countdown features
+    private var isCountdownMode = true // true = countdown mode, false = continuous mode
+    private val countdownHandler = Handler(Looper.getMainLooper())
+    private var countdownValue = 0
+    private val MODE_CONTINUOUS = 0
+    private val MODE_SINGLE_FRAME = 1
+
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = mutableListOf(
@@ -131,7 +138,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดโรงพยาบาล
             videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")), 2)
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(
-                Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),
+                // Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),  // Commented out - may be different camera
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test3}"),
@@ -139,7 +146,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 ), 1)
            // videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_main}")), 2)
             videoProcessor.createTemplateFromVideos("ช่วย", listOf(
-                Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
+              //  Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test3}"),
@@ -196,11 +203,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun setupClickListeners() {
         btnStartStop.setOnClickListener {
-            if (!isTemplatesLoaded) {
-                Toast.makeText(this, "กำลังโหลดข้อมูล กรุณารอสักครู่...", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
             toggleDetectionAndRecording()
+            true
         }
         btnRepeatSound.setOnClickListener {
            /* if (currentVideoFile != null && currentVideoFile!!.exists()) {
@@ -217,12 +221,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             switchCamera()
         }
         previewView.setOnLongClickListener {
-            if (isDetecting) {
-                testGestureDetection()
-                Toast.makeText(this, "Test gesture triggered", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Start detection first", Toast.LENGTH_SHORT).show()
-            }
+            toggleCoundownMode()
             true
         }
     }
@@ -278,13 +277,22 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     btnSwitchCamera.visibility = Button.GONE
                 }
 
-                val preview = Preview.Builder().build().also {
+                // Use portrait resolution (width x height for portrait mode)
+                val targetResolution = android.util.Size(720, 1280) // Portrait: width=720, height=1280
+
+                val preview = Preview.Builder()
+                    .setTargetResolution(targetResolution)
+                    .build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
+
+                // Ensure preview shows full image (not cropped)
+                previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
 
                 imageAnalyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setTargetRotation(previewView.display.rotation)
+                    .setTargetResolution(targetResolution) // CRITICAL: Use same resolution as preview
                     .build()
                     .also { analysis ->
                             signLanguageAnalyzer  = SignLanguageAnalyzer(
@@ -296,6 +304,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                     }
                                 }
                             )
+                            // Set camera type for coordinate mirroring
+                            signLanguageAnalyzer?.isFrontCamera = isFrontCamera
                             analysis.setAnalyzer(cameraExecutor, signLanguageAnalyzer!!)
                     }
 
@@ -307,6 +317,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 cameraProvider?.unbindAll()
                 cameraProvider?.bindToLifecycle(this, currentCameraSelector, preview, imageAnalyzer, videoCapture)
 
+                // Log target resolution for debugging
+                Log.d(TAG, "Camera started with target resolution: ${targetResolution.width}x${targetResolution.height}")
+
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -317,29 +330,88 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // In CameraActivity.kt
 
     private fun toggleDetectionAndRecording() {
+        if (!isTemplatesLoaded) {
+            Toast.makeText(this, "กำลังโหลดข้อมูล กรุณารอสักครู่...",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+       // stop dtection and cancel any ongoing countdown
         if (isDetecting) {
             stopRecording()
             isDetecting = false
-            signLanguageAnalyzer?.stopDetection()  // Add this line
+            signLanguageAnalyzer?.stopDetection()
+
+            // cancel countdown if running
+            countdownHandler.removeCallbacksAndMessages(null)
+            countdownValue = 0
+
             btnStartStop.text = "เริ่มตรวจจับ"
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             resultText.text = "ทำภาษามือเพื่อเริ่มการแปล"
             largeResultText.text = "ยังไม่มีการตรวจจับ"
             largeResultText.setBackgroundColor(Color.TRANSPARENT)
-            // [MODIFIED] Set button text to "Save Image"
+
             btnRepeatSound.text = "บันทึกภาพ"
             btnSwitchCamera.isEnabled = true
         } else {
             startRecording()
             isDetecting = true
             btnStartStop.text = "หยุดตรวจจับ"
-            signLanguageAnalyzer?.startDetection()  // Add this line
+            signLanguageAnalyzer?.startDetection()
             btnStartStop.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-            resultText.text = "กำลังตรวจจับภาษามือ..."
-            largeResultText.text = "พร้อมรับภาษามือ"
-            // [MODIFIED] Set button text to "Save Image"
+            if (isCountdownMode) {
+                startCountdownCapture()
+            } else {
+                resultText.text = "กำลังตรวจจับภาษามือ..."
+                largeResultText.text = "พร้อมรับภาษามือ"
+            }
+
             btnRepeatSound.text = "บันทึกภาพ"
             btnSwitchCamera.isEnabled = false
+        }
+    }
+
+    private fun startCountdownCapture() {
+        countdownValue = 3
+        resultText.text = "3"
+        largeResultText.text = "เตรียมทำท่า..."
+        countdownHandler.post(object: Runnable {
+            override fun run() {
+                when (countdownValue) {
+                    3 -> {
+                        resultText.text = "3"
+                        countdownValue = 2
+                        countdownHandler.postDelayed(this, 1000)
+                    }
+                    2 -> {
+                        resultText.text = "2"
+                        countdownValue = 1
+                        countdownHandler.postDelayed(this, 1000)
+                    }
+                    1 -> {
+                        resultText.text = "1"
+                        countdownValue = 0
+                        countdownHandler.postDelayed(this, 1000)
+                    }
+                    0 -> {
+                        resultText.text = "ทำท่า!!!"
+                        largeResultText.text = "ทำภาษามือ"
+                        signLanguageAnalyzer?.captureSingleFrame()
+                        countdownValue = -1 // Done
+                    }
+                }
+            }
+        })
+    }
+
+    private fun toggleCoundownMode() {
+        isCountdownMode = !isCountdownMode
+        val modeName = if (isCountdownMode) "โหมดนับถอยหลัง (3-2-1)" else "โหมดตรวจจับต่อเนื่อง"
+        Toast.makeText(this, modeName, Toast.LENGTH_SHORT).show()
+        if (isCountdownMode) {
+            signLanguageAnalyzer?.setCaptureMode(MODE_SINGLE_FRAME)
+        } else {
+            signLanguageAnalyzer?.setCaptureMode(MODE_CONTINUOUS)
         }
     }
 

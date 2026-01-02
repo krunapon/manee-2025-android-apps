@@ -278,12 +278,26 @@ class VideoProcessor(private val context: Context) {
             return false
         }
 
+        // Log wrist position for debugging
+        if (actualHands >= 1) {
+            val wristX = landmarks.landmarks[0].x
+            val wristY = landmarks.landmarks[0].y
+            Log.d(TAG, "   👋 Hand 1 wrist: X=${String.format("%.3f", wristX)}, Y=${String.format("%.3f", wristY)}")
+        }
+        if (actualHands >= 2) {
+            val wrist2X = landmarks.landmarks[21].x
+            val wrist2Y = landmarks.landmarks[21].y
+            Log.d(TAG, "   👋 Hand 2 wrist: X=${String.format("%.3f", wrist2X)}, Y=${String.format("%.3f", wrist2Y)}")
+        }
+
+
         // Additional checks for 2-hand signs to distinguish them
         if (actualHands >= 2 && landmarks.landmarks.size >= 42) {
             val leftWristX = landmarks.landmarks[0].x   // Left hand wrist
             val rightWristX = landmarks.landmarks[21].x // Right hand wrist
             val leftWristY = landmarks.landmarks[0].y
             val rightWristY = landmarks.landmarks[21].y
+
 
             val horizontalDistance = kotlin.math.abs(leftWristX - rightWristX)
             val verticalDistance = kotlin.math.abs(leftWristY - rightWristY)
@@ -378,14 +392,9 @@ class VideoProcessor(private val context: Context) {
 
                     // Reject if index finger is pointing up (that's report, not headache)
                     val indexTipY = landmarks.landmarks[8].y
-                    val indexPointingUp = indexTipY < wristY - 0.05f
-                    val middleTipY = landmarks.landmarks[12].y // Middle finger tip
-                    val ringTipY = landmarks.landmarks[16].y // Ring finger tip
-                    val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
-                    val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
-                    Log.d(TAG, "ปวดหัว indexIsHighest=$indexIsHighest indexPointngUp=$indexPointingUp")
-                    if (indexIsHighest || indexPointingUp) {
-                        Log.v(TAG, "ปวดหัว: index finger is pointing up or index is highest , rejecting (wristY=$wristY, indexTipY=$indexTipY")
+                    val indexPointingUp = indexTipY < wristY - 0.12f
+                    if (indexPointingUp) {
+                        Log.v(TAG, "ปวดหัว: index finger is pointing up rejecting (wristY=$wristY, indexTipY=$indexTipY")
                         return false
                     }
                     return true

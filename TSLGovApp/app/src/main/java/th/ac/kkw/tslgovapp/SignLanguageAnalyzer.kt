@@ -1,6 +1,8 @@
 package th.ac.kkw.tslgovapp
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -12,6 +14,8 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
 import kotlin.math.*
+import android.os.Handler
+import android.os.Looper
 
 /**
  * ============================================================================
@@ -63,6 +67,13 @@ class SignLanguageAnalyzer(
         // Hand validation bounds
         private const val MIN_HAND_SPREAD = 0.05f  // Minimum spread of landmarks to be a valid hand
         private const val MAX_HAND_SPREAD = 0.8f   // Maximum spread (hand shouldn't be entire frame)
+
+        // Capture mode settings
+        private const val MODE_CONTINUOUS = 0
+        private const val MODE_SINGLE_FRAME = 1
+        private const val CAPTURE_WINDOW_MS  = 200L
+        private const val PROCESSING_TIMEOUT_MS = 500L
+
     }
 
     // MediaPipe Hand Landmarker
@@ -93,6 +104,15 @@ class SignLanguageAnalyzer(
 
     // Feature extractor for improved recognition
     private val featureExtractor = HandFeatureExtractor()
+
+    // Single frame capture mode
+    private var captureMode = MODE_SINGLE_FRAME
+    private var shouldCaptureFrame = false
+    private var isProcessingCapture = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Camera type tracking (for coordinate mirroring)
+    var isFrontCamera = true
 
     // Add these properties to the class
     private val recentLandmarks = mutableListOf<HandLandmarkData>()
@@ -173,6 +193,11 @@ class SignLanguageAnalyzer(
         isDetectionActive = true
         resetConsecutiveCount()
         lastAnnouncedWord = ""
+
+        // Reset capture state to ensure clean start
+        shouldCaptureFrame = false
+        isProcessingCapture = false
+
         // Ensure the stability check starts fresh and doesn't use old hand positions
         // Start a new session and clear landmarks history
         currentSessionId++
@@ -275,6 +300,16 @@ class SignLanguageAnalyzer(
     private fun processResults(result: HandLandmarkerResult) {
         if (!isDetectionActive) return
 
+        // Release lock after getting result (single-frame mode)
+        // In single-frame mode, only process the result that was explicitly captured
+        val wasCaptured = isProcessingCapture
+        if (captureMode == MODE_SINGLE_FRAME && isProcessingCapture) {
+            isProcessingCapture = false
+            Log.d(TAG, "📸 Single frame processing complete")
+        } else if (captureMode == MODE_SINGLE_FRAME && !wasCaptured) {
+            return
+        }
+
         // Reject frames from before detection started (prevent stale frame processing)
         // MediaPipe LIVE_STREAM may deliver frames that were queued before startDetection() was called
         // We only accept frames captured after detection started (+ a small buffer for latency)
@@ -288,6 +323,9 @@ class SignLanguageAnalyzer(
         if (landmarks.isEmpty()) {
             // No hands detected - reset tracking
             resetConsecutiveCount()
+            if (captureMode == MODE_SINGLE_FRAME && wasCaptured) {
+                Log.w(TAG, "Single-frame capture triggered but NO hands detected!")
+            }
             isGestureInProgress = false
             gestureStartTime = 0L
             return
@@ -315,10 +353,14 @@ class SignLanguageAnalyzer(
         for ((index, hand) in sortedHands.withIndex()) {
             val singleHandLandmarks = mutableListOf<Point3D>()
             hand.forEach { landmark ->
-                singleHandLandmarks.add(Point3D(landmark.x(), landmark.y(), landmark.z()))
+                // Apply mirror transformation for front camera
+                val originalX = landmark.x()
+                val x = if (isFrontCamera) 1.0f - originalX else originalX
+                singleHandLandmarks.add(Point3D(x, landmark.y(), landmark.z()))
             }
             handsToValidate.add(singleHandLandmarks)
-            Log.v(TAG, "   Hand ${index + 1}: ${hand.size} landmarks, wrist x=${String.format("%.3f", hand[0].x())}")
+            // Log both original and transformed coordinates for debugging
+            Log.d(TAG, "   👋 Hand ${index + 1}: frontCamera=$isFrontCamera, originalX=${String.format("%.3f", hand[0].x())}, transformedX=${String.format("%.3f", singleHandLandmarks[0].x)}, y=${String.format("%.3f", singleHandLandmarks[0].y)}")
         }
 
         // Validate each hand
@@ -359,24 +401,31 @@ class SignLanguageAnalyzer(
         val handLandmarkData = HandLandmarkData(activeHandsLandmarks)
 
         // ============================================================
-        // 2. GESTURE TIMING CHECK - Wait for gesture to stabilize
+        // 2. GESTURE TIMING CHECK & STABILITY CHECKS - Skip for single-frame mode
         // ============================================================
+        // In single-frame mdoe, user had time to prepare during countdown
+        // In continuous mode, wait for gesture to stablize
+        if (captureMode == MODE_CONTINUOUS) {
+            val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
+            val minGestureTime = 300L  // Wait 500ms for gesture to stabilize
 
-        val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
-        val minGestureTime = 300L  // Wait 500ms for gesture to stabilize
+            if (gestureElapsedTime < minGestureTime) {
+                Log.v(
+                    TAG,
+                    "   ⏳ Waiting for gesture to stabilize (${gestureElapsedTime}ms / ${minGestureTime}ms)"
+                )
+                return
+            }
 
-        if (gestureElapsedTime < minGestureTime) {
-            Log.v(TAG, "   ⏳ Waiting for gesture to stabilize (${gestureElapsedTime}ms / ${minGestureTime}ms)")
-            return
-        }
 
-        // ============================================================
-        // ADD STABILITY CHECK HERE (NEW)
-        // ============================================================
-        if (!isHandStable(handLandmarkData)) {
-            Log.v(TAG, "   🔄 Hand moving, skipping recognition")
-            resetConsecutiveCount()
-            return  // Skip recognition while hand is moving
+            // ============================================================
+            // ADD STABILITY CHECK HERE (NEW)
+            // ============================================================
+            if (!isHandStable(handLandmarkData)) {
+                Log.v(TAG, "   🔄 Hand moving, skipping recognition")
+                resetConsecutiveCount()
+                return  // Skip recognition while hand is moving
+            }
         }
 
         // ============================================================
@@ -533,7 +582,6 @@ class SignLanguageAnalyzer(
             Log.d(TAG, "   แจ้งความ: index finger not extended")
             return false
         }
-
         return true
     }
 
@@ -702,9 +750,10 @@ class SignLanguageAnalyzer(
                 lastDetectedWord = word
             }
 
-            Log.v(TAG, "📊 Consecutive '$word': $consecutiveCount/$REQUIRED_CONSECUTIVE_DETECTIONS")
-
-            if (consecutiveCount >= REQUIRED_CONSECUTIVE_DETECTIONS) {
+            val requiredDetections = if (captureMode == MODE_SINGLE_FRAME) 1 else REQUIRED_CONSECUTIVE_DETECTIONS
+            Log.v(TAG, "📊 Consecutive '$word': $consecutiveCount/$requiredDetections (mode=${if (captureMode ==
+                +MODE_SINGLE_FRAME) "SINGLE_FRAME" else "CONTINUOUS"})")
+            if (consecutiveCount >= requiredDetections) {
                 val currentTime = System.currentTimeMillis()
                 val timeSinceLastAnnounce = currentTime - lastAnnouncedTime
 
@@ -754,10 +803,13 @@ class SignLanguageAnalyzer(
      * Called for each camera frame
      */
     override fun analyze(image: ImageProxy) {
+
+
         val currentTime = System.currentTimeMillis()
 
         // Frame rate limiting
-        if (currentTime - lastInferenceTime < INFERENCE_INTERVAL_MS) {
+        if (captureMode == MODE_CONTINUOUS &&
+            currentTime - lastInferenceTime < INFERENCE_INTERVAL_MS) {
             image.close()
             return
         }
@@ -770,18 +822,77 @@ class SignLanguageAnalyzer(
         }
 
         try {
-            // Convert to bitmap and process
+            // Set lock immediately for single-frame mode
+            if (captureMode == MODE_SINGLE_FRAME && shouldCaptureFrame && !isProcessingCapture) {
+                isProcessingCapture = true
+                shouldCaptureFrame = false
+
+                // Safety timeout - reset if processResults() never called
+                mainHandler.postDelayed({
+                    if (isProcessingCapture) {
+                        Log.d(TAG, "Capture processing timeout, resetting lock")
+                        isProcessingCapture = false
+                    }
+                }, PROCESSING_TIMEOUT_MS)
+
+                Log.d(TAG, "📸 Single-frame capture Triggered - next result will be processed")
+            }
+
+            // Convert to bitmap and rotate if needed
             val bitmap = image.toBitmap()
-            val mpImage = BitmapImageBuilder(bitmap).build()
+            val rotation = image.imageInfo.rotationDegrees
+
+            // Rotate bitmap to match preview orientation
+            val rotatedBitmap = if (rotation != 0) {
+                val matrix = android.graphics.Matrix()
+                matrix.postRotate(rotation.toFloat())
+                Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            } else {
+                bitmap
+            }
+
+            val mpImage = BitmapImageBuilder(rotatedBitmap).build()
+
+            // Log rotation info for debugging
+            // Log.d(TAG, "Image rotation: $rotation, original size=${bitmap.width}x${bitmap.height}, rotated size=${rotatedBitmap.width}x${rotatedBitmap.height}")
+
             handLandmarker?.detectAsync(mpImage, currentTime)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error analyzing frame: ${e.message}")
+
+            // Reset lock on error
+            if (captureMode == MODE_SINGLE_FRAME) {
+                isProcessingCapture = false
+            }
         } finally {
             image.close()
         }
     }
 
+    // ================================================================
+    // SINGLE-FRAME CAPTURE MDOE
+    // =================================================================
+
+    /**
+     * Set capture mode (continuous or single-frame)
+     */
+    fun setCaptureMode(mode: Int) {
+        captureMode = mode
+        shouldCaptureFrame = false
+        isProcessingCapture = false
+        Log.d(TAG, "Capture mode set to:${if (mode == MODE_SINGLE_FRAME) "SINGLE FRAME" else "CONTINUOUS"}")
+        mainHandler.removeCallbacksAndMessages(null)
+    }
+
+    /**
+     * Trigger capture of a single frame
+     * Call this from CameraActivity during countdown
+     */
+    fun captureSingleFrame() {
+        shouldCaptureFrame = true
+        Log.d(TAG, "Single frame capture enabled")
+    }
     /**
      * Clean up resources
      */
