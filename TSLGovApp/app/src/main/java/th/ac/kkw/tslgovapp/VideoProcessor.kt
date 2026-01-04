@@ -7,10 +7,8 @@ import android.util.Log
 import kotlin.math.*
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.framework.image.MPImage
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
 import th.ac.kkw.tslgovapp.model.RecognitionResult
@@ -42,7 +40,9 @@ class VideoProcessor(private val context: Context) {
             MutableList<SignTemplate>>()
 
     init {
+        Logger.saveLogcatFor(context, VideoProcessor::class)
         setupMediaPipe()
+
     }
 
     private fun setupMediaPipe() {
@@ -290,7 +290,14 @@ class VideoProcessor(private val context: Context) {
             Log.d(TAG, "   👋 Hand 2 wrist: X=${String.format("%.3f", wrist2X)}, Y=${String.format("%.3f", wrist2Y)}")
         }
 
+        val fingerStates = featureExtractor.detectFingerStates(landmarks)
+        val indexTipY = landmarks.landmarks[8].y // Index finger tip
+        val middleTipY = landmarks.landmarks[12].y // Middle finger tip
+        val ringTipY = landmarks.landmarks[16].y // Ring finger tip
+        val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
 
+        Log.d(TAG, "Finger states: $fingerStates")
+        Log.d(TAG, "indexTipY=$indexTipY, middleTipY=$middleTipY, ringTipY=$ringTipY, pinkyTipY=$pinkyTipY")
         // Additional checks for 2-hand signs to distinguish them
         if (actualHands >= 2 && landmarks.landmarks.size >= 42) {
             val leftWristX = landmarks.landmarks[0].x   // Left hand wrist
@@ -301,7 +308,7 @@ class VideoProcessor(private val context: Context) {
 
             val horizontalDistance = kotlin.math.abs(leftWristX - rightWristX)
             val verticalDistance = kotlin.math.abs(leftWristY - rightWristY)
-            val fingerStates = featureExtractor.detectFingerStates(landmarks)
+
 
             Log.d(TAG, "   👐 Two-hand check for '$word': horizontalDist=${String.format("%.3f",
                 horizontalDistance)}, verticalDist=${String.format("%.3f", verticalDistance)}")
@@ -345,17 +352,17 @@ class VideoProcessor(private val context: Context) {
                 "บัตรประชาชน" -> {
                     // ID Card: hands are horizontally apart (side by side)
                     val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
+                    val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
                     Log.d(TAG, "      บัตรประชาชน: isMoreHorizontal=$isMoreHorizontal")
-                    return isMoreHorizontal
+                    return isMoreHorizontal && handsAtWaist
+
                 }
                 "ช่วย" -> {
-                    val handsHighEnough = leftWristY < 0.65f && rightWristY < 0.65f
-                    val hasVerticalSeparation = verticalDistance > 0.12f
-                    val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f
+                    val handsHighEnough = leftWristY < 0.7f && rightWristY < 0.7f
                     val handsAreStacked = horizontalDistance < 0.3f
-                    Log.d(TAG, "handsHighEnough=$handsHighEnough, hasVerticalSeparation=$hasVerticalSeparation" +
-                    "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal, handsAreStacked=$handsAreStacked")
-                    return handsHighEnough && isMoreVerticalThanHorizontal && handsAreStacked
+                    Log.d(TAG, "handsHighEnough=$handsHighEnough" +
+                    "handsAreStacked=$handsAreStacked")
+                    return handsHighEnough && handsAreStacked
                 }
                 "เจ็บคอ" -> {
                     // Neck ache: hands near neck (high position) and at same level (small vertical ```1distance)
@@ -373,7 +380,8 @@ class VideoProcessor(private val context: Context) {
                     val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
                     val handsAtSameLevel = verticalDistance < 0.25f
                     val thumbsWideApart = thumbHorizontalDistance > 0.35f
-                    val result = thumbsWideApart && handsAtSameLevel
+                    val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
+                    val result = thumbsWideApart && handsAtSameLevel && handsAtWaist
                     Log.d(TAG, "      หนังสือเดินทาง: result=$result (thumbsApart=$thumbsWideApart, thumbDist=${String.format("%.3f", thumbHorizontalDistance)}, sameLevel=$handsAtSameLevel)")
                     return result
                 }
@@ -385,8 +393,8 @@ class VideoProcessor(private val context: Context) {
             when (word) {
                 "ปวดหัว" -> {
                     val wristY = landmarks.landmarks[0].y
-                    if (wristY > 0.45f) {
-                        Log.v(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
+                    if (wristY > 0.4f) {
+                        Log.d(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
                         return false
                     }
 
@@ -400,12 +408,42 @@ class VideoProcessor(private val context: Context) {
                     return true
                 }
                 "เครื่องบิน" -> {
-                    // Airplane: hand typically lower than headache, may be more spread out
-                    // Exclude if hand is too high (that's headache territory)
-                    val handNotTooHigh = wristY >= 0.5f  // Airplane is typically lower
-                    val result = handNotTooHigh
-                    Log.d(TAG, "      เครื่องบิน: result=$result (notTooHigh=$handNotTooHigh, wristY=$wristY)")
-                    return result
+                    // fingerStates: [Thumb, Index, Middle, Ring, Pinky]
+                    val thumb = fingerStates[0]
+                    val index = fingerStates[1]
+                    val middle = fingerStates[2]
+                    val ring = fingerStates[3]
+                    val pinky = fingerStates[4]
+
+                    Log.d(TAG, "   ✈️ Airplane: thumb=$thumb, index=$index, middle=$middle, ring=$ring, pinky=$pinky")
+
+                    // Airplane: thumb, index, pinky extended (3 wing fingers)
+                    // Middle and ring should be curled (tucked in)
+                    val wingFingersExtended = pinky >= 1
+
+
+                    if (!wingFingersExtended) {
+                        Log.d(TAG, "   ❌ Airplane: pinky should be extended")
+                        return false
+                    }
+
+                    // Optional: Check if middle/ring are curled (lenient - allow if at least one is curled)
+                    if (middle == 1 || ring == 1) {
+                        Log.d(TAG, "   ⚠️ Airplane: middle/ring should ideally be curled")
+                    }
+
+                    // Check hand position - airplane is at mid-level
+                    val wristY = landmarks.landmarks[0].y
+                    if (wristY < 0.3f) {
+                        Log.d(TAG, "   ❌ Airplane: hand too high (wristY=$wristY), might be ปวดหัว")
+                        return false
+                    }
+                    if (wristY > 0.7f) {
+                        Log.d(TAG, "   ❌ Airplane: hand too low (wristY=$wristY), might be ปวดหัว")
+                        return false
+                    }
+                    Log.d(TAG, "   ✅ Airplane: wing fingers extended, hand at mid-level")
+                    return true
                 }
                 "ห้องน้ำ" -> {
                     // Toilet: hand at mid-to-lower level (waist/chest)
@@ -420,20 +458,15 @@ class VideoProcessor(private val context: Context) {
                 }
                 "แจ้งความ" -> {
                     // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
-                   val wristY = landmarks.landmarks[0].y
-                    /*val handAtFaceLevel = wristY < 0.50f
-                    if (handAtFaceLevel) {
-                        Log.d(TAG, "แจ้งความ hand too high, in headache zone (wristY=$wristY")
-                        return false
-                    }*/
+                    val wristY = landmarks.landmarks[0].y
+                    val handAtFaceLevel = wristY < 0.50f
+
                     // Report: index finger should point up (key distinguishing feature from headache)
-                    val indexTipY = landmarks.landmarks[8].y // Index finger tip
-                    val middleTipY = landmarks.landmarks[12].y // Middle finger tip
-                    val ringTipY = landmarks.landmarks[16].y // Ring finger tip
-                    val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
+
 
                     // Check 1: Index figer tip is significantly higher than wrist (pointing up)
-                    val indexPointingUp = indexTipY < wristY - 0.05f
+                    val indexVerticalExtension = wristY - indexTipY
+                    val indexPointingUp = indexVerticalExtension > 0.08f // Must be pointing up
 
                     // Check 2: Index finger tip is the highest (or tied for hightest) among fingers
                     val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
@@ -441,11 +474,11 @@ class VideoProcessor(private val context: Context) {
                     // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
                     val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
 
-                    // val result = indexPointingUp && indexIsHighest && indexHigherThanMiddle
-                    val result = indexIsHighest
 
-                    Log.d(TAG, "แจ้งความ indexPointingUp=$indexPointingUp, indexIsHighest=$indexIsHighest," +
-                            "indexHigherThanMiddle=$indexHigherThanMiddle (wristY = $wristY, indexTipY = $indexTipY)")
+                    val result = indexIsHighest && handAtFaceLevel && indexPointingUp
+
+                    Log.d(TAG, "แจ้งความ handAtFaceLevel=$handAtFaceLevel, indexIsHighest=$indexIsHighest," +
+                            "indexPointingUp=$indexPointingUp, wristY=$wristY, indexTipY = $indexTipY)")
                     return result
                 }
             }
@@ -576,9 +609,9 @@ class VideoProcessor(private val context: Context) {
             // Use different thresholds: 2-hand signs need higher confidence
             val requiredHands = signTemplates[bestMatchLabel]?.firstOrNull()?.numHands ?: 1
             val minConfidenceThreshold = if (requiredHands == 2) {
-                65f  // Two-hand signs: stricter threshold to avoid false positive
+                50f  // Two-hand signs: stricter threshold to avoid false positive
             } else {
-                55f  // Single-hand signs: increased to reduce false positive
+                40f  // Single-hand signs: increased to reduce false positive
             }
 
             Log.d(TAG, "🎯 Best: $bestMatchLabel (${String.format("%.1f%%", bestConfidence)}) threshold=$minConfidenceThreshold%")

@@ -2,7 +2,6 @@ package th.ac.kkw.tslgovapp
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -54,8 +53,8 @@ class SignLanguageAnalyzer(
         private const val MODEL_FILE = "hand_landmarker.task"
 
         // Detection confidence settings
-        private const val MIN_DETECTION_CONFIDENCE = 0.5f
-        private const val MIN_TRACKING_CONFIDENCE = 0.5f
+        private const val MIN_DETECTION_CONFIDENCE = 0.3f
+        private const val MIN_TRACKING_CONFIDENCE = 0.3f
         private const val MAX_NUM_HANDS = 2
 
         // Frame rate limiting (12.5 FPS for performance)
@@ -106,10 +105,11 @@ class SignLanguageAnalyzer(
     private val featureExtractor = HandFeatureExtractor()
 
     // Single frame capture mode
-    private var captureMode = MODE_SINGLE_FRAME
+    private var captureMode = MODE_CONTINUOUS
     private var shouldCaptureFrame = false
     private var isProcessingCapture = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var frameCount = 0L
 
     // Camera type tracking (for coordinate mirroring)
     var isFrontCamera = true
@@ -120,7 +120,7 @@ class SignLanguageAnalyzer(
     // Max allowed movement between frames
     // The larger value it is, the more chance that false positive will occur
     // The smaller value it is, the more chance that headache may not be detected
-    private val MAX_MOVEMENT_THRESHOLD = 0.15f
+    private val MAX_MOVEMENT_THRESHOLD = 0.20f
 
 
     /**
@@ -156,7 +156,9 @@ class SignLanguageAnalyzer(
         return isStable
     }
     init {
+        Logger.saveLogcatFor(context, SignLanguageAnalyzer::class)
         setupHandLandmarker()
+
     }
 
     /**
@@ -281,11 +283,11 @@ class SignLanguageAnalyzer(
         val wristY1 = hands[1][0].y
 
         // Threshold: hands below 0.75 are considered "at side" and not active
-        val threshold = 0.75f
+        val threshold = 0.85f
         val bothHandsActive = wristY0 < threshold && wristY1 < threshold
         val atLeastOneActive = wristY0 < threshold || wristY1 < threshold
 
-        Log.v(TAG, "   Active hands: wrists Y0=$wristY0, Y1=$wristY1, threshold=$threshold, both=$bothHandsActive, atLeastOne=$atLeastOneActive")
+        Log.d(TAG, "   📍 Active hands: wrists Y0=$wristY0, Y1=$wristY1, threshold=$threshold, both=$bothHandsActive, atLeastOne=$atLeastOneActive")
 
         return when {
             bothHandsActive -> 2
@@ -332,7 +334,10 @@ class SignLanguageAnalyzer(
         }
 
         val numDetectedHands = landmarks.size
-        Log.v(TAG, "👋 Hands detected: $numDetectedHands")
+        Log.d(TAG, "👋 MediaPipe detected: $numDetectedHands hand(s) in this frame")
+        if (numDetectedHands == 1) {
+            Log.w(TAG, "   ⚠️ Only 1 hand detected! For 'help' gesture, keep BOTH hands in frame and closer together")
+        }
 
         // Start gesture timing if not already started
         if (!isGestureInProgress) {
@@ -407,7 +412,7 @@ class SignLanguageAnalyzer(
         // In continuous mode, wait for gesture to stablize
         if (captureMode == MODE_CONTINUOUS) {
             val gestureElapsedTime = System.currentTimeMillis() - gestureStartTime
-            val minGestureTime = 300L  // Wait 500ms for gesture to stabilize
+            val minGestureTime = 500L  // Wait 500ms for gesture to stabilize
 
             if (gestureElapsedTime < minGestureTime) {
                 Log.v(
@@ -511,21 +516,31 @@ class SignLanguageAnalyzer(
      */
     private fun validateAirplaneGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         if (landmarks.landmarks.size < 21) return true
-        
-        // Check that most fingers are extended (spread like wings)
-        val extendedCount = fingerStates.take(5).sum()
-        if (extendedCount < 3) {
-            Log.v(TAG, "   เครื่องบิน: only $extendedCount fingers extended (need ≥3)")
+
+        // fingerStates: [Thumb, Index, Middle, Ring, Pinky]
+        val pinky = fingerStates[4]
+
+        Log.d(TAG, "   ✈️ Airplane: pinky=$pinky")
+
+        // Airplane: thumb, index, pinky extended (3 wing fingers)
+        // Middle and ring should be curled (tucked in)
+        val wingFingersExtended =  pinky >= 1 // At least 2 of 3 wing fingers
+
+
+
+        if (!wingFingersExtended) {
+            Log.d(TAG, "   ❌ Airplane:  pinky should be extended")
             return false
         }
-        
-        // Check hand position - airplane is typically at mid-level, not near head
+
+
+        // Check hand position - airplane is at mid-level
         val wristY = landmarks.landmarks[0].y
         if (wristY < 0.4f) {
-            Log.v(TAG, "   เครื่องบิน: hand too high (wristY=$wristY), might be ปวดหัว")
+            Log.d(TAG, "   ❌ Airplane: hand too high (wristY=$wristY), might be ปวดหัว")
             return false
         }
-        
+
         return true
     }
 
@@ -578,7 +593,7 @@ class SignLanguageAnalyzer(
         }
 
         // Report: index finger should be extended
-        if (fingerStates.size >= 2 && fingerStates[1] != 1) {
+        if (fingerStates[1] != 1) {
             Log.d(TAG, "   แจ้งความ: index finger not extended")
             return false
         }
@@ -638,8 +653,9 @@ class SignLanguageAnalyzer(
      * Characteristics: Two hands, one above the other, palms open
      */
     private fun validateHelpGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
+        Log.d(TAG, "🆘 ช่วย: Checking help gesture...")
         if (landmarks.landmarks.size < 42) {
-            Log.v(TAG, "   ช่วย: need 2 hands, got ${landmarks.landmarks.size / 21}")
+            Log.d(TAG, "   ช่วย: need 2 hands, got ${landmarks.landmarks.size / 21}")
             return false
         }
 
@@ -650,7 +666,7 @@ class SignLanguageAnalyzer(
         val hand2WristX = landmarks.landmarks[21].x
 
         // Help: hands must be in upper position (less than 0.65) of frame (not at sides)
-        val handsHighEnough = hand1WristY < 0.65f && hand2WristY < 0.65f
+        val handsHighEnough = hand1WristY < 0.6f && hand2WristY < 0.6f
 
         val verticalDistance = abs(hand1WristY - hand2WristY)
         val horizontalDistance = abs(hand1WristX - hand2WristX)
@@ -660,10 +676,11 @@ class SignLanguageAnalyzer(
         val handsAreStacked = horizontalDistance < 0.3f
         val result = handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
 
-        Log.v(TAG, "result=$result, handsHighEnough=$handsHighEnough " +
-                "hasVerticalSeparation=$hasVerticalSeparation" +
-                "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal" +
-                "handsAreStacked=$handsAreStacked")
+        Log.d(TAG, "🆘 ช่วย: result=$result, handsHighEnough=$handsHighEnough " +
+                "hasVerticalSeparation=$hasVerticalSeparation " +
+                "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal " +
+                "handsAreStacked=$handsAreStacked " +
+                "(h1Y=${String.format("%.2f", hand1WristY)}, h2Y=${String.format("%.2f", hand2WristY)}, vDist=${String.format("%.2f", verticalDistance)}, hDist=${String.format("%.2f", horizontalDistance)})")
         return result
 
     }
@@ -803,7 +820,11 @@ class SignLanguageAnalyzer(
      * Called for each camera frame
      */
     override fun analyze(image: ImageProxy) {
-
+        // Log frame reception (periodically, not every frame)
+        frameCount++
+        if (frameCount % 60L == 0L) {
+            Log.d(TAG, "📹 Frame received #$frameCount, isDetectionActive=$isDetectionActive")
+        }
 
         val currentTime = System.currentTimeMillis()
 

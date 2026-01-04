@@ -67,7 +67,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val SPEAKING_COOLDOWN_DELAY = 2500L // ระยะเวลา Cooldown (2.5 วินาที) ลองปรับค่านี้ได้
 
     // For countdown features
-    private var isCountdownMode = true // true = countdown mode, false = continuous mode
+    private var isCountdownMode = false // true = countdown mode, false = continuous mode
     private val countdownHandler = Handler(Looper.getMainLooper())
     private var countdownValue = 0
     private val MODE_CONTINUOUS = 0
@@ -88,7 +88,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "🎬 onCreate started")
         setContentView(R.layout.activity_camera)
+        Log.d(TAG, "🎬 Layout set")
 
         // 1. สร้าง instance ของ VideoProcessor
         videoProcessor = VideoProcessor(this)
@@ -138,7 +140,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // หมวดโรงพยาบาล
             videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")), 2)
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(
-                // Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),  // Commented out - may be different camera
+                Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),  // Commented out - may be different camera
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test3}"),
@@ -171,10 +173,19 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             // หมวดสนามบิน/ขนส่ง
             videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
-            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(Uri.parse("android.resource://$packageName/${R.raw.airplane_tom}")),1)
+            videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.airplane_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.airplane_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.airplane_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.airplane_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.airplane_test4}"),
+            ), 1)
             videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.toilet_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.toilet_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.toilet_test4}"),
                 ), 1)
 
             // Save to cache for next time
@@ -306,6 +317,8 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             )
                             // Set camera type for coordinate mirroring
                             signLanguageAnalyzer?.isFrontCamera = isFrontCamera
+                            // Set initial capture mode based on isCountdownMode
+                            signLanguageAnalyzer?.setCaptureMode(if (isCountdownMode) MODE_SINGLE_FRAME else MODE_CONTINUOUS)
                             analysis.setAnalyzer(cameraExecutor, signLanguageAnalyzer!!)
                     }
 
@@ -444,8 +457,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     is VideoRecordEvent.Finalize -> {
                         btnStartStop.isEnabled = true
                         if (!recordEvent.hasError()) {
-                            val msg = "บันทึกวิดีโอสำเร็จในโฟลเดอร์ Downloads/Movies"
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                            // Video saved successfully
+                           // val msg = "บันทึกวิดีโอสำเร็จในโฟลเดอร์ Downloads/Movies"
+                           // Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                         } else {
                             recording?.close()
                             recording = null
