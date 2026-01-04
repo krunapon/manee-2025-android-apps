@@ -512,69 +512,136 @@ class SignLanguageAnalyzer(
 
     /**
      * Validate "เครื่องบิน" (Airplane) gesture
-     * Characteristics: Hand flat, palm down, fingers spread like wings
+     * Characteristics: Pinky/index/thumb are extended as "wings", middle/ring are LESS extended
+     * Uses RELATIVE comparison to distinguish from toilet
      */
     private fun validateAirplaneGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         if (landmarks.landmarks.size < 21) return true
 
-        // fingerStates: [Thumb, Index, Middle, Ring, Pinky]
-        val pinky = fingerStates[4]
+        // Calculate hand size (wrist to middle fingertip distance)
+        val wrist = landmarks.landmarks[0]
+        val middleTip = landmarks.landmarks[12]
+        val indexTip = landmarks.landmarks[8]
+        val pinkyTip = landmarks.landmarks[20]
+        val handSize = sqrt(
+            (middleTip.x - wrist.x).pow(2) +
+            (middleTip.y - wrist.y).pow(2)
+        )
 
-        Log.d(TAG, "   ✈️ Airplane: pinky=$pinky")
+        // Calculate extension ratios for all fingers
+        val middleTipMCP = sqrt(
+            (middleTip.x - landmarks.landmarks[9].x).pow(2) +
+            (middleTip.y - landmarks.landmarks[9].y).pow(2)
+        )
+        val ringTipMCP = sqrt(
+            (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
+            (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+        )
+        val indexTipMCP = sqrt(
+            (indexTip.x - landmarks.landmarks[5].x).pow(2) +
+            (indexTip.y - landmarks.landmarks[5].y).pow(2)
+        )
+        val pinkyTipMCP = sqrt(
+            (pinkyTip.x - landmarks.landmarks[17].x).pow(2) +
+            (pinkyTip.y - landmarks.landmarks[17].y).pow(2)
+        )
 
-        // Airplane: thumb, index, pinky extended (3 wing fingers)
-        // Middle and ring should be curled (tucked in)
-        val wingFingersExtended =  pinky >= 1 // At least 2 of 3 wing fingers
+        val middleExtensionRatio = middleTipMCP / handSize
+        val ringExtensionRatio = ringTipMCP / handSize
+        val indexExtensionRatio = indexTipMCP / handSize
+        val pinkyExtensionRatio = pinkyTipMCP / handSize
 
+        // Airplane: Wing fingers (pinky, index) should be MORE extended than middle/ring
+        val pinkyMoreExtendedThanMiddle = pinkyExtensionRatio > middleExtensionRatio + 0.08f
+        val indexMoreExtendedThanMiddle = indexExtensionRatio > middleExtensionRatio + 0.08f
 
+        val wingsExtended = pinkyMoreExtendedThanMiddle || indexMoreExtendedThanMiddle
 
-        if (!wingFingersExtended) {
-            Log.d(TAG, "   ❌ Airplane:  pinky should be extended")
+        if (!wingsExtended) {
+            Log.d(TAG, "   ❌ Airplane: wing fingers should be more extended than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
             return false
         }
 
-
-        // Check hand position - airplane is at mid-level
-        val wristY = landmarks.landmarks[0].y
-        if (wristY < 0.4f) {
-            Log.d(TAG, "   ❌ Airplane: hand too high (wristY=$wristY), might be ปวดหัว")
-            return false
-        }
-
+        Log.d(TAG, "   ✅ Airplane: wing fingers extended more than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
         return true
     }
 
     /**
      * Validate "ปวดหัว" (Headache) gesture
-     * Characteristics: Hand near head/temple, index finger pointing
+     * Characteristics: Fingertips tightly clustered together (all touching at forehead)
+     * Distinguishes from report (index pointing up), airplane (pinky extended), and toilet (fingers spread)
+     *
+     * Uses TRULY SCALE-INVARIANT fingertip clustering analysis that works regardless of:
+     * - User height
+     * - Hand size
+     * - Distance from camera
      */
     private fun validateHeadacheGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         if (landmarks.landmarks.size < 21) return true
-        
-        // Headache: hand should be in upper portion of frame
-        val wristY = landmarks.landmarks[0].y
-        if (wristY > 0.45f) {
-            Log.d(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
+
+        val wrist = landmarks.landmarks[0]
+        val indexTip = landmarks.landmarks[8]
+        val middleTip = landmarks.landmarks[12]
+        val ringTip = landmarks.landmarks[16]
+        val pinkyTip = landmarks.landmarks[20]
+
+        // Calculate hand size for normalization (distance from wrist to middle fingertip)
+        val handSize = sqrt(
+            (middleTip.x - wrist.x).pow(2) +
+            (middleTip.y - wrist.y).pow(2)
+        )
+
+        // 1. Calculate centroid of all 4 fingertips
+        val fingertipCentroidX = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
+        val fingertipCentroidY = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
+
+        // 2. Calculate distance from each fingertip to centroid
+        val indexDistToCentroid = sqrt(
+            (indexTip.x - fingertipCentroidX).pow(2) +
+            (indexTip.y - fingertipCentroidY).pow(2)
+        )
+        val middleDistToCentroid = sqrt(
+            (middleTip.x - fingertipCentroidX).pow(2) +
+            (middleTip.y - fingertipCentroidY).pow(2)
+        )
+        val ringDistToCentroid = sqrt(
+            (ringTip.x - fingertipCentroidX).pow(2) +
+            (ringTip.y - fingertipCentroidY).pow(2)
+        )
+        val pinkyDistToCentroid = sqrt(
+            (pinkyTip.x - fingertipCentroidX).pow(2) +
+            (pinkyTip.y - fingertipCentroidY).pow(2)
+        )
+
+        // 3. Calculate average cluster spread (normalized by hand size)
+        val avgClusterSpread = (indexDistToCentroid + middleDistToCentroid + ringDistToCentroid + pinkyDistToCentroid) / 4.0
+        val clusterSpreadRatio = (avgClusterSpread / handSize).toFloat()
+
+        // 4. Headache: fingertips clustered tightly (small ratio)
+        //    Toilet: fingers extended outward (larger ratio)
+        //    Airplane: wing fingers extended away (larger ratio)
+        Log.d(TAG, "   ปวดหัว: clusterSpreadRatio=$clusterSpreadRatio (handSize=$handSize, avgClusterSpread=$avgClusterSpread)")
+
+        if (clusterSpreadRatio > 0.16f) {
+            Log.d(TAG, "   ❌ ปวดหัว: fingertips too spread out, might be toilet or airplane")
             return false
         }
 
-        // Headache: fingertips together (few extended fingers)
-        // Count extended fingers (excluding thumb)
-        val extendedCount = if (fingerStates.size >= 5) {
-            fingerStates.slice(1..4).sum()  // index, middle, ring, pinky
-        } else 0
-
-        // Should have 0-1 fingers extended (all tips together)
-        if (extendedCount > 1) {
-            Log.d(TAG, "   ปวดหัว: too many fingers extended (count=$extendedCount)")
+        // 5. Additional check: reject if index finger is pointing up (that's report, not headache)
+        val indexPointingUp = indexTip.y < wrist.y - 0.12f
+        if (indexPointingUp) {
+            Log.v(TAG, "   ❌ ปวดหัว: index finger pointing up, might be report")
             return false
         }
 
+        Log.d(TAG, "   ✅ ปวดหัว: fingertips tightly clustered")
         return true
     }
 
     /**
      * Validate "แจ้งความ" (Report) gesture
+     * Characteristics: Index finger pointing up, highest among fingers
+     * Uses RELATIVE measurements (not absolute Y position) to work regardless of user height
      */
     private fun validateReportGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         // Report is a single-hand gesture
@@ -584,19 +651,39 @@ class SignLanguageAnalyzer(
             return false
         }
 
-        // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
+        // Use RELATIVE measurements (not absolute Y position) to work regardless of user height
         val wristY = landmarks.landmarks[0].y
-        val handAtFaceLevel = wristY > 0.65f
-        if (handAtFaceLevel) {
-            Log.d(TAG, "แจ้งความ hand not at face level (wristY=$wristY)")
+        val indexTipY = landmarks.landmarks[8].y
+        val middleTipY = landmarks.landmarks[12].y
+        val ringTipY = landmarks.landmarks[16].y
+        val pinkyTipY = landmarks.landmarks[20].y
+
+        // Check 1: Index finger tip is significantly higher than wrist (pointing up)
+        val indexVerticalExtension = wristY - indexTipY
+        val indexPointingUp = indexVerticalExtension > 0.08f
+
+        if (!indexPointingUp) {
+            Log.d(TAG, "   แจ้งความ: index not pointing up (extension=$indexVerticalExtension)")
             return false
         }
 
-        // Report: index finger should be extended
-        if (fingerStates[1] != 1) {
-            Log.d(TAG, "   แจ้งความ: index finger not extended")
+        // Check 2: Index finger tip is the highest (or tied for highest) among fingers
+        val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
+
+        if (!indexIsHighest) {
+            Log.d(TAG, "   แจ้งความ: index not highest finger")
             return false
         }
+
+        // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
+        val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
+
+        if (!indexHigherThanMiddle) {
+            Log.d(TAG, "   แจ้งความ: index not significantly higher than middle")
+            return false
+        }
+
+        Log.d(TAG, "   ✅ แจ้งความ: index pointing up, is highest, higher than middle")
         return true
     }
 
@@ -706,19 +793,49 @@ class SignLanguageAnalyzer(
 
     /**
      * Validate "ห้องน้ำ" (Toilet) gesture
-     * Characteristics: hand at mid-to-lower level (waist/chest)
+     * Characteristics: Open hand with fingers extended (distinguishes from airplane)
+     * Uses ratio-based approach to work regardless of hand size or position
      */
     private fun validateToiletGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         if (landmarks.landmarks.size < 21) return true
 
-        // Toilet: hand at mid-to-lower level (waist/chest area)
-        val wristY = landmarks.landmarks[0].y
-        val handAtMidLevel = wristY > 0.60f && wristY < 0.85f
+        // KEY DISTINCTION FROM AIRPLANE:
+        // - Toilet: Middle and ring fingers are EXTENDED
+        // - Airplane: Middle and ring fingers are CURLED (tucked in)
 
-        if (!handAtMidLevel) {
-            Log.v(TAG, "ห้องน้ำ: hand not at mid-level (wristY=$wristY)")
+        // Use RATIOS to work regardless of hand size or camera distance
+        val wrist = landmarks.landmarks[0]
+        val middleTip = landmarks.landmarks[12]
+
+        // Calculate hand size (wrist to middle fingertip distance)
+        val handSize = sqrt(
+            (middleTip.x - wrist.x).pow(2) +
+                (middleTip.y - wrist.y).pow(2)
+        )
+
+        // Check: Middle and ring fingers are extended (not curled like airplane)
+        val middleTipMCP = sqrt(
+            (middleTip.x - landmarks.landmarks[9].x).pow(2) +
+                (middleTip.y - landmarks.landmarks[9].y).pow(2)
+        )
+        val ringTipMCP = sqrt(
+            (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
+                (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+        )
+
+        val middleExtensionRatio = middleTipMCP / handSize
+        val ringExtensionRatio = ringTipMCP / handSize
+
+        // For toilet: fingers should be extended (> 25% of hand size)
+        // For airplane: middle/ring are curled (< 25% of hand size)
+        val fingersExtended = middleExtensionRatio > 0.25f && ringExtensionRatio > 0.25f
+
+        if (!fingersExtended) {
+            Log.v(TAG, "ห้องน้ำ: fingers not extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
             return false
         }
+
+        Log.v(TAG, "ห้องน้ำ: fingers are extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
         return true
     }
 

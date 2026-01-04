@@ -142,9 +142,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),  // Commented out - may be different camera
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test1}"),
-                Uri.parse("android.resource://$packageName/${R.raw.head_ache_test2}"),
-                Uri.parse("android.resource://$packageName/${R.raw.head_ache_test3}"),
-                Uri.parse("android.resource://$packageName/${R.raw.head_ache_test4}"),
+               // Uri.parse("android.resource://$packageName/${R.raw.head_ache_test2}"),
+              //  Uri.parse("android.resource://$packageName/${R.raw.head_ache_test3}"),
+              //  Uri.parse("android.resource://$packageName/${R.raw.head_ache_test4}"),
                 ), 1)
            // videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_main}")), 2)
             videoProcessor.createTemplateFromVideos("ช่วย", listOf(

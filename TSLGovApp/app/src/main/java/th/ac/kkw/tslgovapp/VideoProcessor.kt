@@ -107,12 +107,208 @@ class VideoProcessor(private val context: Context) {
 
             val totalTemplates = signTemplates.values.sumOf {it.size}
             Log.d(TAG, "Templates loaded from cache (${signTemplates.size} words, $totalTemplates templates)")
+
+            // Debug: Print toilet, airplane, and headache template analysis
+            debugPrintToiletTemplates()
+            debugPrintAirplaneTemplates()
+            debugPrintHeadacheTemplates()
+
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load templates from cache: ${e.message}")
             false
         }
     }
+
+    /**
+     * Debug function to print finger states from toilet templates
+     * This helps understand what the actual toilet gesture looks like
+     */
+    private fun debugPrintToiletTemplates() {
+        val toiletTemplates = signTemplates["ห้องน้ำ"]
+        if (toiletTemplates == null || toiletTemplates.isEmpty()) {
+            Log.d(TAG, "🚽 No toilet templates found")
+            return
+        }
+
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🚽 TOILET TEMPLATES ANALYSIS (${toiletTemplates.size} templates)")
+        Log.d(TAG, "========================================")
+
+        for ((index, template) in toiletTemplates.withIndex()) {
+            val landmarks = template.landmarks.landmarks
+            if (landmarks.size < 21) continue
+
+            // MediaPipe hand landmark indices:
+            // 4: Thumb tip, 8: Index tip, 12: Middle tip, 16: Ring tip, 20: Pinky tip
+            // 3: Thumb IP, 6: Index PIP, 10: Middle PIP, 14: Ring PIP, 18: Pinky PIP
+
+            val thumbTip = landmarks[4]
+            val indexTip = landmarks[8]
+            val middleTip = landmarks[12]
+            val ringTip = landmarks[16]
+            val pinkyTip = landmarks[20]
+
+            val thumbIP = landmarks[3]
+            val indexPIP = landmarks[6]
+            val middlePIP = landmarks[10]
+            val ringPIP = landmarks[14]
+            val pinkyPIP = landmarks[18]
+
+            val wrist = landmarks[0]
+
+            // Calculate finger extension (tip.y < pip.y means extended in screen coords)
+            val thumbExtended = abs(thumbTip.x) > abs(thumbIP.x)
+            val indexExtended = indexTip.y < indexPIP.y
+            val middleExtended = middleTip.y < middlePIP.y
+            val ringExtended = ringTip.y < ringPIP.y
+            val pinkyExtended = pinkyTip.y < pinkyPIP.y
+
+            val extendedCount = listOf(thumbExtended, indexExtended, middleExtended, ringExtended, pinkyExtended).count { it }
+
+            Log.d(TAG, "Template #$index:")
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Finger states: thumb=${if(thumbExtended)1 else 0}, index=${if(indexExtended)1 else 0}, middle=${if(middleExtended)1 else 0}, ring=${if(ringExtended)1 else 0}, pinky=${if(pinkyExtended)1 else 0} (extended=$extendedCount/5)")
+            Log.d(TAG, "  Tip Y positions: index=${String.format("%.3f", indexTip.y)}, middle=${String.format("%.3f", middleTip.y)}, ring=${String.format("%.3f", ringTip.y)}, pinky=${String.format("%.3f", pinkyTip.y)}")
+            Log.d(TAG, "  PIP Y positions: index=${String.format("%.3f", indexPIP.y)}, middle=${String.format("%.3f", middlePIP.y)}, ring=${String.format("%.3f", ringPIP.y)}, pinky=${String.format("%.3f", pinkyPIP.y)}")
+        }
+        Log.d(TAG, "========================================")
+    }
+
+    /**
+     * Debug function to print finger extension ratios from airplane templates
+     * This helps understand what the actual airplane gesture looks like
+     */
+    private fun debugPrintAirplaneTemplates() {
+        Log.d(TAG, "🔍 debugPrintAirplaneTemplates() called")
+        Log.d(TAG, "🔍 Available gesture keys: ${signTemplates.keys.joinToString()}")
+
+        val airplaneTemplates = signTemplates["เครื่องบิน"]
+        if (airplaneTemplates == null) {
+            Log.d(TAG, "✈️ Airplane templates key not found in signTemplates")
+            Log.d(TAG, "✈️ Available keys: ${signTemplates.keys.joinToString()}")
+            return
+        }
+        if (airplaneTemplates.isEmpty()) {
+            Log.d(TAG, "✈️ Airplane templates array is empty")
+            return
+        }
+
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "✈️ AIRPLANE TEMPLATES ANALYSIS (${airplaneTemplates.size} templates)")
+        Log.d(TAG, "========================================")
+
+        for ((index, template) in airplaneTemplates.withIndex()) {
+            val landmarks = template.landmarks.landmarks
+            if (landmarks.size < 21) continue
+
+            val wrist = landmarks[0]
+            val middleTip = landmarks[12]
+            val middleMCP = landmarks[9]
+            val ringTip = landmarks[16]
+            val ringMCP = landmarks[13]
+
+            // Calculate hand size
+            val handSize = sqrt(
+                (middleTip.x - wrist.x).pow(2) +
+                (middleTip.y - wrist.y).pow(2)
+            )
+
+            // Calculate extension ratios
+            val middleTipMCP = sqrt(
+                (middleTip.x - middleMCP.x).pow(2) +
+                (middleTip.y - middleMCP.y).pow(2)
+            )
+            val ringTipMCP = sqrt(
+                (ringTip.x - ringMCP.x).pow(2) +
+                (ringTip.y - ringMCP.y).pow(2)
+            )
+
+            val middleExtensionRatio = middleTipMCP / handSize
+            val ringExtensionRatio = ringTipMCP / handSize
+
+            Log.d(TAG, "Template #$index:")
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Middle extension ratio: ${String.format("%.3f", middleExtensionRatio)} (${if (middleExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})")
+            Log.d(TAG, "  Ring extension ratio: ${String.format("%.3f", ringExtensionRatio)} (${if (ringExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})")
+            Log.d(TAG, "  Hand size: ${String.format("%.3f", handSize)}")
+        }
+        Log.d(TAG, "========================================")
+    }
+
+    /**
+     * Debug function to analyze headache templates
+     * This helps understand what the actual headache gesture looks like
+     */
+    private fun debugPrintHeadacheTemplates() {
+        val headacheTemplates = signTemplates["ปวดหัว"]
+        if (headacheTemplates == null) {
+            Log.d(TAG, "🤕 Headache templates key not found in signTemplates")
+            return
+        }
+        if (headacheTemplates.isEmpty()) {
+            Log.d(TAG, "🤕 Headache templates array is empty")
+            return
+        }
+
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🤕 HEADACHE TEMPLATES ANALYSIS (${headacheTemplates.size} templates)")
+        Log.d(TAG, "========================================")
+
+        for ((index, template) in headacheTemplates.withIndex()) {
+            val landmarks = template.landmarks.landmarks
+            if (landmarks.size < 21) continue
+
+            val wrist = landmarks[0]
+            val indexTip = landmarks[8]
+            val middleTip = landmarks[12]
+            val ringTip = landmarks[16]
+            val pinkyTip = landmarks[20]
+            val indexMCP = landmarks[5]
+            val middleMCP = landmarks[9]
+            val ringMCP = landmarks[13]
+            val pinkyMCP = landmarks[17]
+
+            // Calculate finger extensions
+            val indexExtension = sqrt(
+                (indexTip.x - indexMCP.x).pow(2) +
+                (indexTip.y - indexMCP.y).pow(2)
+            )
+            val middleExtension = sqrt(
+                (middleTip.x - middleMCP.x).pow(2) +
+                (middleTip.y - middleMCP.y).pow(2)
+            )
+            val ringExtension = sqrt(
+                (ringTip.x - ringMCP.x).pow(2) +
+                (ringTip.y - ringMCP.y).pow(2)
+            )
+            val pinkyExtension = sqrt(
+                (pinkyTip.x - pinkyMCP.x).pow(2) +
+                (pinkyTip.y - pinkyMCP.y).pow(2)
+            )
+
+            // Calculate finger spread between middle and pinky
+            val fingerSpread = kotlin.math.abs(pinkyTip.y - middleTip.y)
+
+            // Count extended fingers (tip above MCP for upward pointing hand)
+            val indexExtended = if (indexTip.y < indexMCP.y) 1 else 0
+            val middleExtended = if (middleTip.y < middleMCP.y) 1 else 0
+            val ringExtended = if (ringTip.y < ringMCP.y) 1 else 0
+            val pinkyExtended = if (pinkyTip.y < pinkyMCP.y) 1 else 0
+            val extendedCount = indexExtended + middleExtended + ringExtended + pinkyExtended
+
+            Log.d(TAG, "Template #$index:")
+            Log.d(TAG, "  Source video: ${template.sourceVideo}")
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Tip Y: index=${String.format("%.3f", indexTip.y)}, middle=${String.format("%.3f", middleTip.y)}, ring=${String.format("%.3f", ringTip.y)}, pinky=${String.format("%.3f", pinkyTip.y)}")
+            Log.d(TAG, "  MCP Y: index=${String.format("%.3f", indexMCP.y)}, middle=${String.format("%.3f", middleMCP.y)}, ring=${String.format("%.3f", ringMCP.y)}, pinky=${String.format("%.3f", pinkyMCP.y)}")
+            Log.d(TAG, "  Extended count: $extendedCount/4 (index=$indexExtended, middle=$middleExtended, ring=$ringExtended, pinky=$pinkyExtended)")
+            Log.d(TAG, "  Finger spread (middle-pinky): ${String.format("%.3f", fingerSpread)}")
+            Log.d(TAG, "  Extension lengths: index=${String.format("%.3f", indexExtension)}, middle=${String.format("%.3f", middleExtension)}, ring=${String.format("%.3f", ringExtension)}, pinky=${String.format("%.3f", pinkyExtension)}")
+        }
+        Log.d(TAG, "========================================")
+    }
+
     /**
      * Detects which hand is actively signing based on position and movement
      * Returns the index of the active hand (0 or 1)
@@ -388,97 +584,191 @@ class VideoProcessor(private val context: Context) {
 
             }
         } else if (actualHands == 1 && landmarks.landmarks.size >= 21) {
-            val wristX = landmarks.landmarks[0].x
-            val wristY = landmarks.landmarks[0].y
+            // fingerStates: [Thumb, Index, Middle, Ring, Pinky]
+            val thumb = fingerStates[0]
+            val index = fingerStates[1]
+            val middle = fingerStates[2]
+            val ring = fingerStates[3]
+            val pinky = fingerStates[4]
+            Log.d(TAG, "thumb=$thumb, index=$index, middle=$middle, ring=$ring, pinky=$pinky")
             when (word) {
                 "ปวดหัว" -> {
-                    val wristY = landmarks.landmarks[0].y
-                    if (wristY > 0.4f) {
-                        Log.d(TAG, "   ปวดหัว: hand too low (wristY=$wristY)")
+                    // TRULY SCALE-INVARIANT: Fingertip clustering analysis
+                    // Headache: fingertips are tightly clustered together (all touching at forehead)
+                    // Toilet: fingers are extended outward (spread apart)
+                    // This works regardless of user height, hand size, or camera distance
+
+                    val wrist = landmarks.landmarks[0]
+                    val indexTip = landmarks.landmarks[8]
+                    val middleTip = landmarks.landmarks[12]
+                    val ringTip = landmarks.landmarks[16]
+                    val pinkyTip = landmarks.landmarks[20]
+
+                    // Calculate hand size for normalization (distance from wrist to middle fingertip)
+                    val handSize = sqrt(
+                        (middleTip.x - wrist.x).pow(2) +
+                        (middleTip.y - wrist.y).pow(2)
+                    )
+
+                    // 1. Calculate centroid of all 4 fingertips
+                    val fingertipCentroidX = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
+                    val fingertipCentroidY = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
+
+                    // 2. Calculate distance from each fingertip to centroid
+                    val indexDistToCentroid = sqrt(
+                        (indexTip.x - fingertipCentroidX).pow(2) +
+                        (indexTip.y - fingertipCentroidY).pow(2)
+                    )
+                    val middleDistToCentroid = sqrt(
+                        (middleTip.x - fingertipCentroidX).pow(2) +
+                        (middleTip.y - fingertipCentroidY).pow(2)
+                    )
+                    val ringDistToCentroid = sqrt(
+                        (ringTip.x - fingertipCentroidX).pow(2) +
+                        (ringTip.y - fingertipCentroidY).pow(2)
+                    )
+                    val pinkyDistToCentroid = sqrt(
+                        (pinkyTip.x - fingertipCentroidX).pow(2) +
+                        (pinkyTip.y - fingertipCentroidY).pow(2)
+                    )
+
+                    // 3. Calculate average cluster spread (normalized by hand size)
+                    val avgClusterSpread = (indexDistToCentroid + middleDistToCentroid + ringDistToCentroid + pinkyDistToCentroid) / 4.0
+                    val clusterSpreadRatio = (avgClusterSpread / handSize).toFloat()
+
+                    // 4. Headache: fingertips clustered tightly (small ratio)
+                    //    Toilet: fingers extended outward (larger ratio)
+                    Log.d(TAG, "   ปวดหัว: clusterSpreadRatio=$clusterSpreadRatio (handSize=$handSize, avgClusterSpread=$avgClusterSpread)")
+
+                    if (clusterSpreadRatio > 0.16f) {
+                        Log.d(TAG, "   ❌ ปวดหัว: fingertips too spread out, might be toilet or airplane")
                         return false
                     }
 
-                    // Reject if index finger is pointing up (that's report, not headache)
-                    val indexTipY = landmarks.landmarks[8].y
-                    val indexPointingUp = indexTipY < wristY - 0.12f
+                    // 5. Additional check: reject if index finger is pointing up (that's report, not headache)
+                    val indexPointingUp = indexTip.y < wrist.y - 0.12f
                     if (indexPointingUp) {
-                        Log.v(TAG, "ปวดหัว: index finger is pointing up rejecting (wristY=$wristY, indexTipY=$indexTipY")
+                        Log.v(TAG, "   ❌ ปวดหัว: index finger pointing up, might be report")
                         return false
                     }
+
+                    Log.d(TAG, "   ✅ ปวดหัว: fingertips tightly clustered")
                     return true
                 }
                 "เครื่องบิน" -> {
-                    // fingerStates: [Thumb, Index, Middle, Ring, Pinky]
-                    val thumb = fingerStates[0]
-                    val index = fingerStates[1]
-                    val middle = fingerStates[2]
-                    val ring = fingerStates[3]
-                    val pinky = fingerStates[4]
+                    // Airplane: Pinky/index/thumb are extended as "wings", middle/ring are LESS extended
+                    // KEY DISTINCTION FROM TOILET: Wing fingers (pinky, index) extend MORE than middle/ring
+                    // Toilet: ALL fingers have similar extension
 
-                    Log.d(TAG, "   ✈️ Airplane: thumb=$thumb, index=$index, middle=$middle, ring=$ring, pinky=$pinky")
+                    // Calculate hand size (wrist to middle fingertip distance)
+                    val wrist = landmarks.landmarks[0]
+                    val middleTip = landmarks.landmarks[12]
+                    val indexTip = landmarks.landmarks[8]
+                    val pinkyTip = landmarks.landmarks[20]
+                    val handSize = sqrt(
+                        (middleTip.x - wrist.x).pow(2) +
+                        (middleTip.y - wrist.y).pow(2)
+                    )
 
-                    // Airplane: thumb, index, pinky extended (3 wing fingers)
-                    // Middle and ring should be curled (tucked in)
-                    val wingFingersExtended = pinky >= 1
+                    // Calculate extension ratios for all fingers
+                    val middleTipMCP = sqrt(
+                        (middleTip.x - landmarks.landmarks[9].x).pow(2) +
+                        (middleTip.y - landmarks.landmarks[9].y).pow(2)
+                    )
+                    val ringTipMCP = sqrt(
+                        (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
+                        (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+                    )
+                    val indexTipMCP = sqrt(
+                        (indexTip.x - landmarks.landmarks[5].x).pow(2) +
+                        (indexTip.y - landmarks.landmarks[5].y).pow(2)
+                    )
+                    val pinkyTipMCP = sqrt(
+                        (pinkyTip.x - landmarks.landmarks[17].x).pow(2) +
+                        (pinkyTip.y - landmarks.landmarks[17].y).pow(2)
+                    )
 
+                    val middleExtensionRatio = middleTipMCP / handSize
+                    val ringExtensionRatio = ringTipMCP / handSize
+                    val indexExtensionRatio = indexTipMCP / handSize
+                    val pinkyExtensionRatio = pinkyTipMCP / handSize
 
-                    if (!wingFingersExtended) {
-                        Log.d(TAG, "   ❌ Airplane: pinky should be extended")
+                    // Airplane: Wing fingers (pinky, index) should be MORE extended than middle/ring
+                    val pinkyMoreExtendedThanMiddle = pinkyExtensionRatio > middleExtensionRatio + 0.08f
+                    val indexMoreExtendedThanMiddle = indexExtensionRatio > middleExtensionRatio + 0.08f
+
+                    val wingsExtended = pinkyMoreExtendedThanMiddle || indexMoreExtendedThanMiddle
+
+                    if (!wingsExtended) {
+                        Log.d(TAG, "   ❌ Airplane: wing fingers should be more extended than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
                         return false
                     }
 
-                    // Optional: Check if middle/ring are curled (lenient - allow if at least one is curled)
-                    if (middle == 1 || ring == 1) {
-                        Log.d(TAG, "   ⚠️ Airplane: middle/ring should ideally be curled")
-                    }
-
-                    // Check hand position - airplane is at mid-level
-                    val wristY = landmarks.landmarks[0].y
-                    if (wristY < 0.3f) {
-                        Log.d(TAG, "   ❌ Airplane: hand too high (wristY=$wristY), might be ปวดหัว")
-                        return false
-                    }
-                    if (wristY > 0.7f) {
-                        Log.d(TAG, "   ❌ Airplane: hand too low (wristY=$wristY), might be ปวดหัว")
-                        return false
-                    }
-                    Log.d(TAG, "   ✅ Airplane: wing fingers extended, hand at mid-level")
+                    Log.d(TAG, "   ✅ Airplane: wing fingers extended more than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
                     return true
                 }
                 "ห้องน้ำ" -> {
-                    // Toilet: hand at mid-to-lower level (waist/chest)
-                    // Not too high (different from ปวดหัว), not too low (hands at sides)
-                    val wristY = landmarks.landmarks[0].y
-                    val handsAtMidLevel = wristY > 0.6f && wristY < 0.85f
-                    if (!handsAtMidLevel) {
-                        Log.v(TAG, "ห้องน้ำ: hand not at mid-level (wristY=$wristY)")
+                    // Toilet: Open hand gesture - detect by finger spread, not binary extended/curl
+                    // Use RATIOS to work regardless of hand size or camera distance
+
+                    // Calculate hand size (wrist to middle fingertip distance)
+                    val wrist = landmarks.landmarks[0]
+                    val middleTip = landmarks.landmarks[12]
+                    val handSize = sqrt(
+                        (middleTip.x - wrist.x).pow(2) +
+                        (middleTip.y - wrist.y).pow(2)
+                    )
+
+                    // Check 1: Middle and ring fingers are extended (not curled like airplane)
+                    // Use ratio: extension length / hand size
+                    val middleTipMCP = sqrt(
+                        (middleTip.x - landmarks.landmarks[9].x).pow(2) +
+                        (middleTip.y - landmarks.landmarks[9].y).pow(2)
+                    )
+                    val ringTipMCP = sqrt(
+                        (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
+                        (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+                    )
+
+                    val middleExtensionRatio = middleTipMCP / handSize
+                    val ringExtensionRatio = ringTipMCP / handSize
+
+                    // For toilet: fingers should be extended (> 35% of hand size)
+                    // For airplane: middle/ring are curled (< 25% of hand size)
+                    val fingersExtended = middleExtensionRatio > 0.25f && ringExtensionRatio > 0.25f
+
+                    if (!fingersExtended) {
+                        Log.v(TAG, "ห้องน้ำ: fingers not extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio, handSize=$handSize)")
                         return false
                     }
+
+                    Log.v(TAG, "ห้องน้ำ: fingers are extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
                     return true
                 }
                 "แจ้งความ" -> {
-                    // Hand should be at face level (mouth to nose area, roughly Y 0.3-0.6)
-                    val wristY = landmarks.landmarks[0].y
-                    val handAtFaceLevel = wristY < 0.50f
-
                     // Report: index finger should point up (key distinguishing feature from headache)
+                    // Use RELATIVE measurements (not absolute Y position) to work regardless of user height
 
-
-                    // Check 1: Index figer tip is significantly higher than wrist (pointing up)
+                    // Check 1: Index finger tip is significantly higher than wrist (pointing up)
+                    val wristY = landmarks.landmarks[0].y
+                    val indexTipY = landmarks.landmarks[8].y
                     val indexVerticalExtension = wristY - indexTipY
                     val indexPointingUp = indexVerticalExtension > 0.08f // Must be pointing up
 
-                    // Check 2: Index finger tip is the highest (or tied for hightest) among fingers
+                    // Check 2: Index finger tip is the highest (or tied for highest) among fingers
+                    val middleTipY = landmarks.landmarks[12].y
+                    val ringTipY = landmarks.landmarks[16].y
+                    val pinkyTipY = landmarks.landmarks[20].y
                     val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
 
                     // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
                     val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
 
+                    val result = indexIsHighest && indexPointingUp && indexHigherThanMiddle
 
-                    val result = indexIsHighest && handAtFaceLevel && indexPointingUp
-
-                    Log.d(TAG, "แจ้งความ handAtFaceLevel=$handAtFaceLevel, indexIsHighest=$indexIsHighest," +
-                            "indexPointingUp=$indexPointingUp, wristY=$wristY, indexTipY = $indexTipY)")
+                    Log.d(TAG, "แจ้งความ indexIsHighest=$indexIsHighest, " +
+                            "indexPointingUp=$indexPointingUp, indexHigherThanMiddle=$indexHigherThanMiddle, " +
+                            "wristY=$wristY, indexTipY=$indexTipY")
                     return result
                 }
             }
