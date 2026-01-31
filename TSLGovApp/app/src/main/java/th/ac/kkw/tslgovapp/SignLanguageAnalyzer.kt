@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import th.ac.kkw.tslgovapp.model.HandLandmarkData
 import th.ac.kkw.tslgovapp.model.Point3D
+import th.ac.kkw.tslgovapp.HandCountTracker
 import kotlin.math.*
 import android.os.Handler
 import android.os.Looper
@@ -122,7 +123,21 @@ class SignLanguageAnalyzer(
     // The smaller value it is, the more chance that headache may not be detected
     private val MAX_MOVEMENT_THRESHOLD = 0.20f
 
+    // ========================================================================
+    // TEMPORAL HAND COUNT TRACKING
+    // ========================================================================
 
+    /**
+     * Temporal hand count tracker - uses voting to determine true hand count over time.
+     *
+     * Problem: MediaPipe may detect 2 hands in some frames and 1 hand in others during
+     * the same gesture (e.g., when one hand moves out of frame or becomes occluded).
+     * This causes the recognition system to try matching different gesture types mid-gesture.
+     *
+     * Solution: Track hand detections over the last 5 frames and use a voting mechanism
+     * to determine the stable hand count. This prevents flickering between 1 and 2 hands.
+     */
+    private val handCountTracker = HandCountTracker()
     /**
      * Check if hand position is stable (not moving too much)
      * Helps prevent false positives from transitional movements
@@ -154,6 +169,80 @@ class SignLanguageAnalyzer(
         }
 
         return isStable
+    }
+
+    /**
+     * Check if hands are intentionally being shown for gesture recognition
+     * Uses motion and position tracking instead of static Y threshold
+     *
+     * A hand is considered "intentionally shown" if:
+     * 1. It has entered the frame recently (motion detected)
+     * 2. OR it's in a stable position in the upper-middle portion (Y < 0.8 for closer cameras)
+     *
+     * This adapts to different camera distances - far away = smaller Y values
+     */
+    private fun areHandsIntentionallyShown(hands: List<List<Point3D>>): Boolean  {
+        if (hands.isEmpty()) return false
+
+        // Check if ANY hand has recently moved into the frame
+        // We track this by comparing current wrist positions with recent history
+        val currentWristPositions = hands.map { it[0] } // Get wrist of each hand
+
+        if (recentLandmarks.isEmpty()) {
+            return true
+        }
+
+        // Check if wrists have moved significantly from previous frame
+        // This indicates the user is intentionally positioning their hands
+        val prevWrist = recentLandmarks.last().landmarks[0]
+
+        for (currentWrist in currentWristPositions) {
+            val movement = sqrt(
+                (currentWrist.x - prevWrist.x).pow(2) +
+                        (currentWrist.y - prevWrist.y).pow(2)
+            )
+
+            if (movement > 0.05f) {
+                Log.d(TAG, "Hands actively being positioned (movement=$movement)")
+                return true
+            }
+        }
+
+        // No recent motion - check if hands are in reasonable gesture position
+        // Use adaptive threshold based on hand size (proxy for camera distance)
+        val avgWristY = currentWristPositions.map { it.y }.average()
+
+        // Calculate hand size as proxy for camera distance
+        val handSize = calculateHandSize(hands[0])
+
+        // Adaptive threshold: larger hadns (clsoer camera) = lwoer Y threshold acceptable
+        // Smaller hands (farther camera) = Y values will naturally be smalelr
+        val adaptiveThreshold = when {
+            handSize > 0.4f -> 0.75f // Large hands (close) - must be higher in frame
+            handSize > 0.25f -> 0.80f // Medium hands
+            else -> 0.85f  // Small hands (far) - allow more of frame
+        }
+
+        val inPosition = avgWristY < adaptiveThreshold
+        Log.d(TAG, " Hand position check: avgY=$avgWristY, handSize=$handSize, threshold=$adaptiveThreshold, inPosition=$inPosition")
+
+        return inPosition
+    }
+
+    /**
+     * Calculate hand size (proxy for camera distance)
+     * Returns the spread of landmarks as a percentage of frame size
+     */
+    private fun calculateHandSize(landmarks: List<Point3D>): Float {
+        val minX = landmarks.minOfOrNull { it.x } ?: return 0f
+        val maxX = landmarks.maxOfOrNull { it.x} ?: return 0f
+        val minY = landmarks.minOfOrNull { it.y } ?: return 0f
+        val maxY = landmarks.maxOfOrNull { it.y } ?: return 0f
+
+        val width = maxX - minX
+        val height = maxY - minY
+
+        return maxOf(width, height)
     }
     init {
         Logger.saveLogcatFor(context, SignLanguageAnalyzer::class)
@@ -205,6 +294,7 @@ class SignLanguageAnalyzer(
         currentSessionId++
         detectionStartTime = System.currentTimeMillis()
         recentLandmarks.clear()
+        handCountTracker.reset()
 
         isGestureInProgress = false
         gestureStartTime = 0L
@@ -328,6 +418,8 @@ class SignLanguageAnalyzer(
             if (captureMode == MODE_SINGLE_FRAME && wasCaptured) {
                 Log.w(TAG, "Single-frame capture triggered but NO hands detected!")
             }
+            // No hands detected - reset the temporal tracker
+            handCountTracker.reset()
             isGestureInProgress = false
             gestureStartTime = 0L
             return
@@ -381,14 +473,34 @@ class SignLanguageAnalyzer(
             return
         }
 
-        // Count active hands (in upper portion of frame)
-        val activeHandsCount = countActiveHands(handsToValidate)
-        if (activeHandsCount == 0) {
-            Log.v(TAG, "   No active hands in detection zone")
+        // Check if hands are intentionally being shown for gesture recognition
+        // Uses motion and adaptive positioning instead of static Y threshold
+        val handsIntentionallyShown = areHandsIntentionallyShown(handsToValidate)
+        val activeHandsCount = handsToValidate.size
+
+        // Handle no active hands case BEFORE adding to tracker
+        if (!handsIntentionallyShown) {
+            Log.v(TAG, "   Hands not intentionally shown (at rest/sides)")
             resetConsecutiveCount()
+            handCountTracker.reset()
             return
         }
+        // Determine which hand count to use:
+        // - Single-frame mode: use current frame count (user had time to prepare)
+        // - Continuous mode: use stable count from temporal tracker
+        // Track hand count over time using temporal tracker
+        val stableHandCount = handCountTracker.addFrame(activeHandsCount)
+        Log.d(TAG, "   📊 Hand count tracker: ${handCountTracker.getHistoryInfo()}")
+        val effectiveHandCount = if (captureMode == MODE_SINGLE_FRAME) {
+            activeHandsCount  // In single-frame mode, trust the current frame
+        } else {
+            stableHandCount ?: run {
+                Log.v(TAG, "   ⏳ Not enough frames for stable hand count, waiting...")
+                return
+            }
+        }
 
+        Log.d(TAG, "   🔒 Using hand count: $effectiveHandCount")
         // Build landmarks data for active hands only
         val activeHandsLandmarks = mutableListOf<Point3D>()
         if (activeHandsCount == 1 && handsToValidate.size == 2) {
@@ -444,7 +556,7 @@ class SignLanguageAnalyzer(
         Log.v(TAG, "📊 Features: ${angleFeatures.size} angles, fingers=${fingerStates.joinToString()}")
 
         // Step 2: Use VideoProcessor for template matching
-        val recognitionResult = videoProcessor.recognizeSign(handLandmarkData, activeHandsCount)
+        val recognitionResult = videoProcessor.recognizeSign(handLandmarkData, effectiveHandCount)
 
         if (recognitionResult != null) {
             val word = recognitionResult.word
