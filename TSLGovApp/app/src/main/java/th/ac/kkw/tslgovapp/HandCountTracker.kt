@@ -34,7 +34,7 @@ class HandCountTracker {
 
         // Number of recent frames to keep in history
         // Larger = more stable but slower to react to changes
-        private const val HISTORY_SIZE = 5
+        private const val HISTORY_SIZE = 3
 
         // Minimum percentage of frames that must agree before locking a hand count
         // 0.6 = 60% of frames must have the same hand count

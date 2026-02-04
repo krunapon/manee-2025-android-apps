@@ -55,7 +55,7 @@ class SignLanguageAnalyzer(
 
         // Detection confidence settings
         private const val MIN_DETECTION_CONFIDENCE = 0.3f
-        private const val MIN_TRACKING_CONFIDENCE = 0.3f
+        private const val MIN_TRACKING_CONFIDENCE = 0.5f
         private const val MAX_NUM_HANDS = 2
 
         // Frame rate limiting (12.5 FPS for performance)
@@ -121,7 +121,7 @@ class SignLanguageAnalyzer(
     // Max allowed movement between frames
     // The larger value it is, the more chance that false positive will occur
     // The smaller value it is, the more chance that headache may not be detected
-    private val MAX_MOVEMENT_THRESHOLD = 0.20f
+    private val MAX_MOVEMENT_THRESHOLD = 0.50f
 
     // ========================================================================
     // TEMPORAL HAND COUNT TRACKING
@@ -757,11 +757,11 @@ class SignLanguageAnalyzer(
      */
     private fun validateReportGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
         // Report is a single-hand gesture
-        if (landmarks.landmarks.size > 21) {
+        /* if (landmarks.landmarks.size > 21) {
             // If 2 hands detected, this might not be แจ้งความ
             Log.d(TAG, "   แจ้งความ: detected ${landmarks.landmarks.size / 21} hands, expected 1")
             return false
-        }
+        }*/
 
         // Use RELATIVE measurements (not absolute Y position) to work regardless of user height
         val wristY = landmarks.landmarks[0].y
@@ -770,35 +770,99 @@ class SignLanguageAnalyzer(
         val ringTipY = landmarks.landmarks[16].y
         val pinkyTipY = landmarks.landmarks[20].y
 
-        // Check 1: Index finger tip is significantly higher than wrist (pointing up)
-        val indexVerticalExtension = wristY - indexTipY
-        val indexPointingUp = indexVerticalExtension > 0.08f
+        // ========================================
+        // MODE 1: Hand positioned normally (wrist in upper 70% of frame)
+        // Use original wrist-based validation
+        // ========================================
+        if (wristY < 0.7f) {
+            // Check 1: Index finger tip is significantly higher than wrist (pointing up)
+            val indexVerticalExtension = wristY - indexTipY
+            val indexPointingUp = indexVerticalExtension > 0.08f
 
-        if (!indexPointingUp) {
-            Log.d(TAG, "   แจ้งความ: index not pointing up (extension=$indexVerticalExtension)")
-            return false
+            if (!indexPointingUp) {
+                Log.d(TAG, "   แจ้งความ: index not pointing up (extension=$indexVerticalExtension)")
+                return false
+            }
+
+            // Check 2: Index finger tip is the highest (or tied for highest) among fingers
+            val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
+
+            if (!indexIsHighest) {
+                Log.d(TAG, "   แจ้งความ: index not highest finger")
+                return false
+            }
+
+            // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
+            val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
+
+            if (!indexHigherThanMiddle) {
+                Log.d(TAG, "   แจ้งความ: index not significantly higher than middle")
+                return false
+            }
+
+            Log.d(TAG, "   ✅ แจ้งความ: index pointing up, is highest, higher than middle")
+            return true
         }
+        // ========================================
+        // MODE 2: Hand positioned LOW (wrist in bottom 30% of frame)
+        // Use relative finger comparison instead of wrist-based
+        // ========================================
+        else {
+            // When hand is low, we can't use wrist as reference because there's no "above" space
+            // Instead, check that index is the most EXTENDED finger (pointing up relative to hand)
 
-        // Check 2: Index finger tip is the highest (or tied for highest) among fingers
-        val indexIsHighest = indexTipY <= minOf(middleTipY, ringTipY, pinkyTipY) + 0.02f
+            // Calculate finger extension: distance from PIP joint to tip for each finger
+            // This measures how "extended" each finger is, regardless of absolute position
+            val indexMCPY = landmarks.landmarks[5].y
+            val middleMCPY = landmarks.landmarks[9].y
+            val ringMCPY = landmarks.landmarks[13].y
+            val pinkyMCPY = landmarks.landmarks[17].y
 
-        if (!indexIsHighest) {
-            Log.d(TAG, "   แจ้งความ: index not highest finger")
-            return false
+            // Extension = tip Y - MCP Y (negative = pointing up, positive = pointing down)
+            val indexExtension = indexTipY - indexMCPY
+            val middleExtension = middleTipY - middleMCPY
+            val ringExtension = ringTipY - ringMCPY
+            val pinkyExtension = pinkyTipY - pinkyMCPY
+
+            // Index should be most extended (most negative value = pointing up most)
+            val indexMostExtended =
+                indexExtension <= minOf(middleExtension, ringExtension, pinkyExtension)
+
+            if (!indexMostExtended) {
+                Log.d(
+                    TAG,
+                    "   แจ้งความ [low hand]: index not most extended (indexExt=$indexExtension" +
+                            " middleExt=$middleExtension, ringExt=$ringExtension, pinkyExt=$pinkyExtension)"
+                )
+                return false
+            }
+
+            // Index should be pointing up (negative extension) or at least not pointing down much
+            val indexPointingUp = indexExtension < 0.05f
+
+            if (!indexPointingUp) {
+                Log.d(
+                    TAG, "   แจ้งความ [low hand]: index pointing down too much " +
+                            "(extension=$indexExtension)"
+                )
+                return false
+            }
+
+            // Index should be clearly more extended than middle finger (distinguish from open hand)
+            val indexMoreExtended = middleExtension - indexExtension > 0.03f
+
+            if (!indexMoreExtended) {
+                Log.d(TAG, "   แจ้งความ [low hand]: index not clearly more extended than middle")
+                return false
+            }
+            Log.d(
+                TAG,
+                "   ✅ แจ้งความ: index most extended finger, pointing up (low hand position at " +
+                        " y=${String.format("%.2f", wristY)})"
+            )
+            return true
         }
-
-        // Check 3: Index finger tip is significantly higher than middle finger (distinguish from open hand)
-        val indexHigherThanMiddle = middleTipY - indexTipY > 0.03f
-
-        if (!indexHigherThanMiddle) {
-            Log.d(TAG, "   แจ้งความ: index not significantly higher than middle")
-            return false
-        }
-
-        Log.d(TAG, "   ✅ แจ้งความ: index pointing up, is highest, higher than middle")
-        return true
     }
-
     /**
      * Validate "หาย" (Lost) gesture
      */
@@ -946,7 +1010,7 @@ class SignLanguageAnalyzer(
             Log.v(TAG, "ห้องน้ำ: fingers not extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
             return false
         }
-
+        
         Log.v(TAG, "ห้องน้ำ: fingers are extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
         return true
     }
