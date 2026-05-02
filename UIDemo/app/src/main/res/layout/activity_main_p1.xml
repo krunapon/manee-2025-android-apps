@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:text="ระบบแปลภาษามือไทย"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#1A6BBF"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <VideoView
+        android:id="@+id/videoView"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_gravity="center"/>
+
+    <TextView
+        android:text="กดปุ่มเพื่อเริ่มต้น"
+        android:textSize="16sp"
+        android:textColor="#888888"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"/>
+
+    <Button
+        android:text="เริ่มต้นใช้งาน"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#1A6BBF"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="32dp"/>
+
+</LinearLayout>

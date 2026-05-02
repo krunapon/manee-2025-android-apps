@@ -15,6 +15,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -34,7 +35,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-
 
 class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -86,6 +86,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val TAG = "CameraActivity"
     }
 
+    @RequiresApi(Build.VERSION_CODES.DONUT)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "🎬 onCreate started")
@@ -538,7 +539,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = textToSpeech?.setLanguage(Locale("th", "TH"))
+            val result = textToSpeech?.setLanguage(Locale.forLanguageTag("th-TH"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 textToSpeech?.language = Locale.ENGLISH
             }
