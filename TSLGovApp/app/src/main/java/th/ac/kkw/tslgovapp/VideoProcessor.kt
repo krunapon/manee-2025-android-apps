@@ -374,6 +374,38 @@ class VideoProcessor(private val context: Context) {
     }
 
 
+    /**
+     * 🩺 เพิ่ม template ที่สร้างจากข้อมูลพิกัดมือ (ไม่ต้องอ่านวิดีโอ)
+     *
+     * ใช้สำหรับคำที่ยังไม่มีไฟล์วิดีโอตัวอย่าง โดยใช้ HandLandmarkData ที่ hard-code
+     * ไว้ใน SignLanguageConfig (เช่น SICK_SIGN_TEMPLATE สำหรับคำว่า "ไม่สบาย")
+     *
+     * - ถ้ามี synthetic template ของคำนี้อยู่แล้ว จะ skip เพื่อกันซ้ำ
+     * - ใช้ sourceVideo = "synthetic" เป็นเครื่องหมายแยกจาก template ที่มาจากวิดีโอ
+     */
+    fun addSyntheticTemplate(
+        label: String,
+        landmarks: HandLandmarkData,
+        numHands: Int = 1
+    ) {
+        val existing = signTemplates[label]
+        if (existing != null && existing.any { it.sourceVideo == "synthetic" }) {
+            Log.d(TAG, "Synthetic template for '$label' already exists, skipping")
+            return
+        }
+        if (!signTemplates.containsKey(label)) {
+            signTemplates[label] = mutableListOf()
+        }
+        signTemplates[label]!!.add(
+            SignTemplate(
+                landmarks = landmarks,
+                numHands = numHands,
+                sourceVideo = "synthetic"
+            )
+        )
+        Log.i(TAG, "✅ Added synthetic template for '$label' (numHands=$numHands)")
+    }
+
     fun createTemplateFromVideos(
         label: String,
         videoUris: List<Uri>,
@@ -770,6 +802,58 @@ class VideoProcessor(private val context: Context) {
                             "indexPointingUp=$indexPointingUp, indexHigherThanMiddle=$indexHigherThanMiddle, " +
                             "wristY=$wristY, indexTipY=$indexTipY")
                     return result
+                }
+                "ไม่สบาย" -> {
+                    // 🩺 ไม่สบาย: มือเดียว ฝ่ามือเปิด แตะที่หน้าผาก (เช็คว่ามีไข้)
+                    //
+                    // จุดต่างจากท่าใกล้เคียง:
+                    //   - ปวดหัว: นิ้วทั้งหมดรวม "กระจุก" กันแตะหน้าผาก   → fingertip cluster แคบ
+                    //   - แจ้งความ: ชี้นิ้วเดียว (index)                  → นิ้วเดียวยืด
+                    //   - ไม่สบาย: ฝ่ามือ "แบ" แตะหน้าผาก                 → นิ้วยืดหลายนิ้ว และกระจาย
+
+                    val wrist = landmarks.landmarks[0]
+                    val wristY = wrist.y
+
+                    // 1) มือต้องอยู่ระดับสูง (ใกล้หน้าผาก)
+                    val handHighEnough = wristY < 0.55f
+                    if (!handHighEnough) {
+                        Log.d(TAG, "   ไม่สบาย: hand not high enough (wristY=$wristY)")
+                        return false
+                    }
+
+                    // 2) ฝ่ามือต้องเปิด — อย่างน้อย 3 นิ้วยืด (index/middle/ring/pinky)
+                    val fingersExtended = index + middle + ring + pinky
+                    if (fingersExtended < 3) {
+                        Log.d(TAG, "   ไม่สบาย: not enough fingers extended ($fingersExtended/4)")
+                        return false
+                    }
+
+                    // 3) ต้องไม่ใช่ "ปวดหัว" — เช็ค fingertip cluster ว่ากระจาย ไม่กระจุก
+                    val indexTip = landmarks.landmarks[8]
+                    val middleTip = landmarks.landmarks[12]
+                    val ringTip = landmarks.landmarks[16]
+                    val pinkyTip = landmarks.landmarks[20]
+                    val handSize = sqrt(
+                        (middleTip.x - wrist.x).pow(2) +
+                        (middleTip.y - wrist.y).pow(2)
+                    )
+                    val cx = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
+                    val cy = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
+                    val avgSpread = (
+                        sqrt((indexTip.x - cx).pow(2)  + (indexTip.y - cy).pow(2)) +
+                        sqrt((middleTip.x - cx).pow(2) + (middleTip.y - cy).pow(2)) +
+                        sqrt((ringTip.x - cx).pow(2)   + (ringTip.y - cy).pow(2)) +
+                        sqrt((pinkyTip.x - cx).pow(2)  + (pinkyTip.y - cy).pow(2))
+                    ) / 4.0
+                    val spreadRatio = (avgSpread / handSize).toFloat()
+                    if (spreadRatio < 0.10f) {
+                        Log.d(TAG, "   ไม่สบาย: fingers too clustered, looks like ปวดหัว (spreadRatio=$spreadRatio)")
+                        return false
+                    }
+
+                    Log.d(TAG, "   ✅ ไม่สบาย: open palm at forehead " +
+                            "(wristY=$wristY, fingers=$fingersExtended/4, spread=$spreadRatio)")
+                    return true
                 }
             }
         }

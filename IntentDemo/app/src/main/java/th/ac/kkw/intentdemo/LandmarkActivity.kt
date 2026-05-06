@@ -170,7 +170,8 @@ class LandmarkActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setResultListener { result, _ -> onResult(result) }
             .build()
 
-        handLandmarker = HandLandmarker.createFromOptions(this, options)
+        handLandmarker =
+            HandLandmarker.createFromOptions(this, options)
     }
 
     override fun onRequestPermissionsResult(

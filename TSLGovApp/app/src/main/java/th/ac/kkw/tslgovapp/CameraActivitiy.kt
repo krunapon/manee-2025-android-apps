@@ -116,6 +116,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         lifecycleScope.launch(Dispatchers.IO) {
             val loadedFromCache = videoProcessor.loadTemplatesFromCache()
             if (loadedFromCache) {
+                // เพิ่ม template สังเคราะห์ของคำที่ยังไม่มีไฟล์วิดีโอ (เช่น "ไม่สบาย")
+                // หลังจากโหลด cache แล้ว — เพราะ cache รุ่นเก่าอาจยังไม่มีคำใหม่
+                registerSyntheticTemplates()
                 withContext(Dispatchers.Main) {
                     isTemplatesLoaded = true
                     btnStartStop.isEnabled = true
@@ -128,6 +131,21 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 loadTemplatesFromVideos()
             }
         }
+    }
+
+    /**
+     * 🩺 ลงทะเบียน template สังเคราะห์สำหรับคำที่ยังไม่มีไฟล์วิดีโอตัวอย่าง
+     *
+     * ปัจจุบันมีคำว่า "ไม่สบาย" (มือเดียว แตะหน้าผาก) ที่ใช้ template hard-coded
+     * ใน SignLanguageConfig.SICK_SIGN_TEMPLATE เมื่อมีไฟล์วิดีโอแล้ว
+     * ให้ย้ายไปใช้ createTemplateFromVideos() แบบคำอื่นแทน
+     */
+    private fun registerSyntheticTemplates() {
+        videoProcessor.addSyntheticTemplate(
+            label = "ไม่สบาย",
+            landmarks = SignLanguageConfig.SICK_SIGN_TEMPLATE,
+            numHands = 1
+        )
     }
     /**
      * โหลด Template ของคำศัพท์ภาษามือทั้งหมดที่กำหนดไว้ในโครงการ
@@ -188,6 +206,9 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test3}"),
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test4}"),
                 ), 1)
+
+            // ลงทะเบียน template สังเคราะห์ (คำที่ยังไม่มีไฟล์วิดีโอ) ก่อน save cache
+            registerSyntheticTemplates()
 
             // Save to cache for next time
             videoProcessor.saveTemplatesToCache()

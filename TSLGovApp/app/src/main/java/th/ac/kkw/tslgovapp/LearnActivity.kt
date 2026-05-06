@@ -84,6 +84,14 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             meaning = "ห้องน้ำ",
             videoFileName = "toilet_main.mp4",
             category = "สนามบิน"
+        ),
+        // 🩺 คำใหม่ — ยังไม่มีวิดีโอจริง จะใช้ demo video แทน
+        // เมื่อบันทึกวิดีโอ "ไม่สบาย" แล้ว ให้วางที่ res/raw/sick_main.mp4
+        SignWord(
+            word = "ไม่สบาย",
+            meaning = "รู้สึกไม่สบาย/มีไข้",
+            videoFileName = "sick_main.mp4",
+            category = "โรงพยาบาล"
         )
     )
 

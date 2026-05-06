@@ -600,22 +600,85 @@ class SignLanguageAnalyzer(
         
         // Word-specific angle validation
         return when (word) {
-            // โรงพยาบาล (Hospital) - 3 words
+            // โรงพยาบาล (Hospital)
             "ปวดหัว" -> validateHeadacheGesture(landmarks, fingerStates)
             "ช่วย" -> validateHelpGesture(landmarks, fingerStates)
             "เจ็บคอ" -> validateSoreThroatGesture(landmarks, fingerStates)
+            "ไม่สบาย" -> validateSickGesture(landmarks, fingerStates)
 
-
-            // สถานีตำรวจ (Police) - 3 words
+            // สถานีตำรวจ (Police)
             "แจ้งความ" -> validateReportGesture(landmarks, fingerStates)
             "หาย" -> validateLostGesture(landmarks, fingerStates)
 
-            // สนามบิน (Airport) - 3 words
+            // สนามบิน (Airport)
             "เครื่องบิน" -> validateAirplaneGesture(landmarks, fingerStates)
             "บัตรประชาชน" -> validateIDCardGesture(landmarks, fingerStates)
             "ห้องน้ำ" -> validateToiletGesture(landmarks, fingerStates)
             else -> true // Allow other words through
         }
+    }
+
+    /**
+     * 🩺 Validate "ไม่สบาย" (Sick) gesture
+     * ลักษณะ: มือข้างเดียว ฝ่ามือเปิด แตะที่หน้าผาก (เช็คว่ามีไข้)
+     *
+     * Distinguishing factors:
+     * - vs ปวดหัว: นิ้ว "กระจาย" ไม่กระจุก (ปวดหัวคือนิ้วทุกนิ้วรวมกันแตะหน้าผาก)
+     * - vs แจ้งความ: ใช้นิ้วหลายนิ้ว ไม่ใช่ชี้นิ้วเดียว
+     * - vs ห้องน้ำ: มืออยู่สูง (ใกล้หน้าผาก) ไม่ใช่อยู่ระดับอกหรือกลางลำตัว
+     */
+    private fun validateSickGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
+        if (landmarks.landmarks.size < 21) {
+            Log.v(TAG, "   ไม่สบาย: not enough landmarks")
+            return false
+        }
+
+        val wrist = landmarks.landmarks[0]
+        val wristY = wrist.y
+
+        // 1) มือต้องอยู่ระดับสูง (ใกล้หน้าผาก)
+        val handHighEnough = wristY < 0.55f
+        if (!handHighEnough) {
+            Log.d(TAG, "   ไม่สบาย: hand not high enough (wristY=$wristY)")
+            return false
+        }
+
+        // 2) นิ้วต้องยืดอย่างน้อย 3 นิ้ว (ฝ่ามือเปิด ไม่ใช่กำมือ และไม่ใช่ชี้นิ้วเดียว)
+        // fingerStates: [thumb, index, middle, ring, pinky] ของมือแรก
+        val nonThumbExtended = if (fingerStates.size >= 5) {
+            fingerStates[1] + fingerStates[2] + fingerStates[3] + fingerStates[4]
+        } else 0
+        if (nonThumbExtended < 3) {
+            Log.d(TAG, "   ไม่สบาย: only $nonThumbExtended/4 fingers extended (need ≥3)")
+            return false
+        }
+
+        // 3) นิ้วต้องกระจาย (เพื่อแยกจาก "ปวดหัว" ที่นิ้วรวมเป็นกลุ่มเดียว)
+        val indexTip = landmarks.landmarks[8]
+        val middleTip = landmarks.landmarks[12]
+        val ringTip = landmarks.landmarks[16]
+        val pinkyTip = landmarks.landmarks[20]
+        val handSize = sqrt(
+            (middleTip.x - wrist.x).pow(2) +
+            (middleTip.y - wrist.y).pow(2)
+        )
+        val cx = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
+        val cy = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
+        val avgSpread = (
+            sqrt((indexTip.x - cx).pow(2)  + (indexTip.y - cy).pow(2)) +
+            sqrt((middleTip.x - cx).pow(2) + (middleTip.y - cy).pow(2)) +
+            sqrt((ringTip.x - cx).pow(2)   + (ringTip.y - cy).pow(2)) +
+            sqrt((pinkyTip.x - cx).pow(2)  + (pinkyTip.y - cy).pow(2))
+        ) / 4.0
+        val spreadRatio = (avgSpread / handSize).toFloat()
+        if (spreadRatio < 0.10f) {
+            Log.d(TAG, "   ไม่สบาย: fingers too clustered, looks like ปวดหัว (spreadRatio=$spreadRatio)")
+            return false
+        }
+
+        Log.d(TAG, "   ✅ ไม่สบาย: open palm at forehead " +
+                "(wristY=$wristY, fingers=$nonThumbExtended/4, spread=$spreadRatio)")
+        return true
     }
 
     // ========================================================================
