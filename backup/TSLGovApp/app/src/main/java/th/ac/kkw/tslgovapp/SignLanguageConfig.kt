@@ -46,45 +46,6 @@ object SignLanguageConfig {
         )
     )
 
-    // 🩺 Template สังเคราะห์สำหรับท่า "ไม่สบาย"
-    // ลักษณะท่า: มือข้างเดียว ฝ่ามือเปิด แตะที่หน้าผาก (เช็คว่ามีไข้)
-    // - ข้อมือ (wrist) อยู่ใกล้ระดับศีรษะ (Y ~0.30 = อยู่ส่วนบนของกรอบภาพ)
-    // - นิ้วทุกนิ้วยืดขึ้น (tip Y < MCP Y) ไม่กำมือ
-    // - นิ้วกระจายออก (ไม่กระจุก) เพื่อแยกจากท่า "ปวดหัว"
-    // ☝️ เมื่อได้ไฟล์วิดีโอจริง ให้แทนที่ template นี้ด้วยการเรียก
-    //    videoProcessor.createTemplateFromVideos("ไม่สบาย", listOf(...), numHands = 1)
-    val SICK_SIGN_TEMPLATE = HandLandmarkData(
-        landmarks = listOf(
-            // ข้อมือยกอยู่ระดับหน้าผาก (Y = 0.30 = ส่วนบนของเฟรม)
-            Point3D(0.50f, 0.45f, 0.00f),  // 0: WRIST
-            // นิ้วโป้ง (กางออกด้านข้าง)
-            Point3D(0.42f, 0.42f, -0.02f), // 1: THUMB_CMC
-            Point3D(0.38f, 0.38f, -0.04f), // 2: THUMB_MCP
-            Point3D(0.36f, 0.34f, -0.05f), // 3: THUMB_IP
-            Point3D(0.34f, 0.30f, -0.06f), // 4: THUMB_TIP
-            // นิ้วชี้ (ยืดขึ้น)
-            Point3D(0.46f, 0.36f, 0.00f),  // 5: INDEX_MCP
-            Point3D(0.45f, 0.30f, -0.02f), // 6: INDEX_PIP
-            Point3D(0.44f, 0.25f, -0.04f), // 7: INDEX_DIP
-            Point3D(0.43f, 0.20f, -0.05f), // 8: INDEX_TIP
-            // นิ้วกลาง (ยืดขึ้น สูงสุด)
-            Point3D(0.50f, 0.36f, 0.00f),  // 9: MIDDLE_MCP
-            Point3D(0.50f, 0.29f, -0.02f), // 10: MIDDLE_PIP
-            Point3D(0.50f, 0.23f, -0.04f), // 11: MIDDLE_DIP
-            Point3D(0.50f, 0.18f, -0.05f), // 12: MIDDLE_TIP
-            // นิ้วนาง (ยืดขึ้น)
-            Point3D(0.54f, 0.36f, 0.00f),  // 13: RING_MCP
-            Point3D(0.55f, 0.30f, -0.02f), // 14: RING_PIP
-            Point3D(0.56f, 0.25f, -0.04f), // 15: RING_DIP
-            Point3D(0.57f, 0.20f, -0.05f), // 16: RING_TIP
-            // นิ้วก้อย (ยืดขึ้น)
-            Point3D(0.58f, 0.38f, 0.00f),  // 17: PINKY_MCP
-            Point3D(0.60f, 0.32f, -0.02f), // 18: PINKY_PIP
-            Point3D(0.62f, 0.27f, -0.04f), // 19: PINKY_DIP
-            Point3D(0.64f, 0.22f, -0.05f)  // 20: PINKY_TIP
-        )
-    )
-
     // 🎯 รายการคำศัพท์ทั้งหมด พร้อมระบุประเภทมือ
     val ALL_WORDS = listOf(
         // Phase 1: คำง่าย (เริ่มทดสอบจากนี้)
@@ -186,19 +147,6 @@ object SignLanguageConfig {
             testVideoFiles = listOf("report_test1.mp4", "report_test2.mp4"),
             priority = 3,
             expectedAccuracy = 60,
-            numHands = 1
-        ),
-
-
-        SignWord(
-            word = "ไม่สบาย",
-            meaning = "รู้สึกไม่สบาย/มีไข้",
-            category = "โรงพยาบาล",
-            mainVideoFile = "sick_main.mp4",                           // ยังไม่มีไฟล์วิดีโอ — ใช้ SICK_SIGN_TEMPLATE แทน
-            testVideoFiles = listOf<String>("sick_test1.mp4", "sick_test2.mp4"),            // ยังไม่มีไฟล์วิดีโอทดสอบ
-
-            priority = 1,
-            expectedAccuracy = 80,
             numHands = 1
         )
     )

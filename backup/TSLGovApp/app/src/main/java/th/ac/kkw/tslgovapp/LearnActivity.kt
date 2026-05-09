@@ -84,12 +84,6 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             meaning = "ห้องน้ำ",
             videoFileName = "toilet_main.mp4",
             category = "สนามบิน"
-        ),
-        SignWord(
-            word = "ไม่สบาย",
-            meaning = "รู้สึกไม่สบาย/มีไข้",
-            videoFileName = "sick_main.mp4",
-            category = "โรงพยาบาล"
         )
     )
 

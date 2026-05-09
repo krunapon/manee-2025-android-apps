@@ -15,7 +15,6 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -35,6 +34,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+
 
 class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -86,7 +86,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val TAG = "CameraActivity"
     }
 
-    @RequiresApi(Build.VERSION_CODES.DONUT)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "🎬 onCreate started")
@@ -116,7 +115,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         lifecycleScope.launch(Dispatchers.IO) {
             val loadedFromCache = videoProcessor.loadTemplatesFromCache()
             if (loadedFromCache) {
-
                 withContext(Dispatchers.Main) {
                     isTemplatesLoaded = true
                     btnStartStop.isEnabled = true
@@ -130,7 +128,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         }
     }
-
     /**
      * โหลด Template ของคำศัพท์ภาษามือทั้งหมดที่กำหนดไว้ในโครงการ
      * การทำงานทั้งหมดจะอยู่ใน Background Thread เพื่อป้องกันไม่ให้แอปค้าง
@@ -149,6 +146,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
               //  Uri.parse("android.resource://$packageName/${R.raw.head_ache_test3}"),
               //  Uri.parse("android.resource://$packageName/${R.raw.head_ache_test4}"),
                 ), 1)
+           // videoProcessor.createTemplateFromVideos("ช่วย", listOf(Uri.parse("android.resource://$packageName/${R.raw.help_main}")), 2)
             videoProcessor.createTemplateFromVideos("ช่วย", listOf(
               //  Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
@@ -156,18 +154,14 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.help_test3}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test4}")),2
             )
-            videoProcessor.createTemplateFromVideos("ไม่สบาย",
-                listOf(Uri.parse("android.resource://$packageName/${R.raw.sick_main}"),
-                Uri.parse("android.resource://$packageName/${R.raw.sick_test1}"),
-                Uri.parse("android.resource://$packageName/${R.raw.sick_test2}")), 1)
-
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.lost}"),
                 Uri.parse("android.resource://$packageName/${R.raw.lost_test1}"),
             //    Uri.parse("android.resource://$packageName/${R.raw.lost_test2}"),
-                Uri.parse("android.resource://$packageName/${R.raw.lost_test3}")), 2)
-             //   Uri.parse("android.resource://$packageName/${R.raw.lost_test4}")
+                Uri.parse("android.resource://$packageName/${R.raw.lost_test3}"),
+             //   Uri.parse("android.resource://$packageName/${R.raw.lost_test4}"),
+            ),2)
             videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")), 2)
             videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.report_main}"),
@@ -193,7 +187,6 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test3}"),
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test4}"),
                 ), 1)
-
 
             // Save to cache for next time
             videoProcessor.saveTemplatesToCache()
@@ -545,7 +538,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = textToSpeech?.setLanguage(Locale.forLanguageTag("th-TH"))
+            val result = textToSpeech?.setLanguage(Locale("th", "TH"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 textToSpeech?.language = Locale.ENGLISH
             }

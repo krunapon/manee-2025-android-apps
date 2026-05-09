@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material Design Theme Colors (Required by Android) -->
+    <color name="colorPrimary">#1976D2</color>                  <!-- Main brand color -->
+    <color name="colorPrimaryVariant">#0D47A1</color>           <!-- Darker variant of primary -->
+    <color name="colorOnPrimary">#FFFFFF</color>                <!-- Text/icons on primary color -->
+
+    <color name="colorSecondary">#FF5722</color>                <!-- Accent color -->
+    <color name="colorSecondaryVariant">#D84315</color>         <!-- Darker variant of secondary -->
+    <color name="colorOnSecondary">#FFFFFF</color>              <!-- Text/icons on secondary color -->
+
+    <color name="colorSurface">#FFFFFF</color>                  <!-- Card/surface background -->
+    <color name="colorOnSurface">#212121</color>                <!-- Text/icons on surface -->
+
+    <color name="colorBackground">#FAFAFA</color>               <!-- Screen background -->
+    <color name="colorOnBackground">#212121</color>             <!-- Text/icons on background -->
+
+    <color name="colorError">#F44336</color>                    <!-- Error color -->
+    <color name="colorOnError">#FFFFFF</color>                  <!-- Text/icons on error color -->
+
+    <!-- Your Custom Colors (from before) -->
+    <color name="button_primary_color">#1976D2</color>          <!-- Blue - trustworthy, official -->
+    <color name="button_primary_dark">#0D47A1</color>           <!-- Darker blue for pressed state -->
+    <color name="primary_light_color">#BBDEFB</color>           <!-- Light blue for ripple effect -->
+
+    <!-- Learn Button Colors (Green) -->
+    <color name="button_learn_color">#4CAF50</color>
+    <color name="button_learn_dark">#388E3C</color>
+
+    <!-- Practice Button Colors (Blue) -->
+    <color name="button_practice_color">#2196F3</color>
+    <color name="button_practice_dark">#1976D2</color>
+
+    <!-- Secondary Colors -->
+    <color name="grey_400">#BDBDBD</color>                      <!-- Light grey for disabled state -->
+
+    <!-- Additional recommended colors for your app -->
+    <color name="primary_color">#1976D2</color>                 <!-- Main blue -->
+    <color name="primary_dark">#0D47A1</color>                  <!-- Dark blue -->
+    <color name="accent_color">#FF5722</color>                  <!-- Orange accent for important actions -->
+
+    <!-- Background Colors -->
+    <color name="background_white">#FFFFFF</color>
+    <color name="background_light_grey">#F5F5F5</color>
+    <color name="background_color">#F8F9FA</color>               <!-- Main screen background -->
+    <color name="surface_color">#FAFAFA</color>                 <!-- Light surface for video background -->
+
+    <!-- Text Colors -->
+    <color name="text_primary">#212121</color>                  <!-- Dark text -->
+    <color name="text_secondary">#757575</color>                <!-- Secondary text -->
+    <color name="text_white">#FFFFFF</color>                    <!-- White text -->
+    <color name="primary_text_color">#1A237E</color>            <!-- Header text (dark blue) -->
+    <color name="secondary_text_color">#616161</color>          <!-- Subtitle and description text -->
+    <color name="button_text_color">#FFFFFF</color>!-- White text on buttons -->
+    <color name="hint_text_color">#9E9E9E</color>               <!-- Hint/helper text -->
+
+    <!-- Border and Stroke Colors -->
+    <color name="border_color">#E0E0E0</color>                  <!-- Light grey border -->
+
+    <!-- Status Colors for Government Services -->
+    <color name="success_green">#4CAF50</color>                 <!-- Success messages -->
+    <color name="warning_orange">#FF9800</color>                <!-- Warnings -->
+    <color name="error_red">#F44336</color>                     <!-- Errors -->
+
+    <!-- Accessibility Colors (High Contrast) -->
+    <color name="high_contrast_blue">#0D47A1</color>
+    <color name="high_contrast_yellow">#FFD600</color>          <!-- For important notifications -->
+</resources>

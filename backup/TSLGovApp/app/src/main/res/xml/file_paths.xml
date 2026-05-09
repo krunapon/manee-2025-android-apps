@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- สำหรับ Downloads folder (Android 10+) -->
+    <external-path
+        name="downloads"
+        path="Download/" />
+
+    <!-- สำหรับ Movies folder (Android 9-) -->
+    <external-path
+        name="movies"
+        path="Movies/" />
+
+    <!-- สำหรับ External Storage ทั้งหมด -->
+    <external-path
+        name="external_files"
+        path="." />
+
+    <!-- สำหรับไฟล์ในโฟลเดอร์แอป (เดิม) -->
+    <external-files-path
+        name="external_app_files"
+        path="." />
+</paths>

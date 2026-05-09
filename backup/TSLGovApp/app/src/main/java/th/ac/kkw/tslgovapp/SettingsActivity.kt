@@ -1,0 +1,13 @@
+// SettingsActivity.kt
+package th.ac.kkw.tslgovapp
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+
+class SettingsActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // จะเพิ่ม layout ทีหลัง
+        setContentView(android.R.layout.activity_list_item)
+    }
+}

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_color"
+    tools:context=".MainActivity">
+
+    <!-- Header Title -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:text="ระบบแปลภาษามือไทยเป็นเสียงพูด"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="@color/primary_text_color"
+        android:textAlignment="center"
+        android:fontFamily="sans-serif-medium" />
+
+    <!-- Subtitle -->
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tvTitle"
+        android:layout_marginTop="8dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:text="ช่วยแปลภาษามือไทยเป็นเสียงพูดสำหรับคำศัพท์ที่ี่ใช้ในสถานที่ราชการ"
+        android:textSize="20sp"
+        android:textColor="@color/secondary_text_color"
+        android:textAlignment="center" />
+
+    <!-- Video Container -->
+    <LinearLayout
+        android:id="@+id/videoContainer"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_below="@id/tvSubtitle"
+        android:layout_marginTop="32dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:orientation="vertical"
+        android:background="@drawable/video_background"
+        android:elevation="4dp">
+
+        <!-- VideoView -->
+        <VideoView
+            android:id="@+id/videoView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="8dp" />
+
+    </LinearLayout>
+
+
+    <!-- Start Button Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="48dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- Main Start Button -->
+        <Button
+            android:id="@+id/btnLearnSignLanguage"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/learn_button_text"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/button_text_color"
+            android:background="@drawable/button_learn_selector"
+            android:elevation="8dp"
+            android:translationZ="8dp" />
+        <!-- Main Start Button -->
+        <Button
+            android:id="@+id/btnStartSignLanguage"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/start_button_text"
+            android:textSize="18sp"
+            android:layout_marginTop="16dp"
+            android:textStyle="bold"
+            android:textColor="@color/button_text_color"
+            android:background="@drawable/button_practice_selector"
+            android:elevation="8dp"
+            android:translationZ="8dp" />
+
+        <!-- Info Text -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/hint_start_tsl"
+            android:textSize="16sp"
+            android:textColor="@color/hint_text_color"
+            android:textAlignment="center" />
+
+    </LinearLayout>
+
+</RelativeLayout>

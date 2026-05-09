@@ -21,7 +21,6 @@ class VideoProcessor(private val context: Context) {
     private val singleHandTemplates = mutableMapOf<String, HandLandmarkData>()
     private val doubleHandTemplates = mutableMapOf<String, HandLandmarkData>()
     private val featureExtractor = HandFeatureExtractor()
-
     companion object {
         private const val TAG = "VideoProcessor"
         private const val MODEL_FILE = "hand_landmarker.task" // ✅ Correct path
@@ -106,11 +105,8 @@ class VideoProcessor(private val context: Context) {
                 }
             }
 
-            val totalTemplates = signTemplates.values.sumOf { it.size }
-            Log.d(
-                TAG,
-                "Templates loaded from cache (${signTemplates.size} words, $totalTemplates templates)"
-            )
+            val totalTemplates = signTemplates.values.sumOf {it.size}
+            Log.d(TAG, "Templates loaded from cache (${signTemplates.size} words, $totalTemplates templates)")
 
             // Debug: Print toilet, airplane, and headache template analysis
             debugPrintToiletTemplates()
@@ -168,51 +164,13 @@ class VideoProcessor(private val context: Context) {
             val ringExtended = ringTip.y < ringPIP.y
             val pinkyExtended = pinkyTip.y < pinkyPIP.y
 
-            val extendedCount = listOf(
-                thumbExtended,
-                indexExtended,
-                middleExtended,
-                ringExtended,
-                pinkyExtended
-            ).count { it }
+            val extendedCount = listOf(thumbExtended, indexExtended, middleExtended, ringExtended, pinkyExtended).count { it }
 
             Log.d(TAG, "Template #$index:")
-            Log.d(
-                TAG,
-                "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}"
-            )
-            Log.d(
-                TAG,
-                "  Finger states: thumb=${if (thumbExtended) 1 else 0}, index=${if (indexExtended) 1 else 0}, middle=${if (middleExtended) 1 else 0}, ring=${if (ringExtended) 1 else 0}, pinky=${if (pinkyExtended) 1 else 0} (extended=$extendedCount/5)"
-            )
-            Log.d(
-                TAG,
-                "  Tip Y positions: index=${
-                    String.format(
-                        "%.3f",
-                        indexTip.y
-                    )
-                }, middle=${String.format("%.3f", middleTip.y)}, ring=${
-                    String.format(
-                        "%.3f",
-                        ringTip.y
-                    )
-                }, pinky=${String.format("%.3f", pinkyTip.y)}"
-            )
-            Log.d(
-                TAG,
-                "  PIP Y positions: index=${
-                    String.format(
-                        "%.3f",
-                        indexPIP.y
-                    )
-                }, middle=${String.format("%.3f", middlePIP.y)}, ring=${
-                    String.format(
-                        "%.3f",
-                        ringPIP.y
-                    )
-                }, pinky=${String.format("%.3f", pinkyPIP.y)}"
-            )
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Finger states: thumb=${if(thumbExtended)1 else 0}, index=${if(indexExtended)1 else 0}, middle=${if(middleExtended)1 else 0}, ring=${if(ringExtended)1 else 0}, pinky=${if(pinkyExtended)1 else 0} (extended=$extendedCount/5)")
+            Log.d(TAG, "  Tip Y positions: index=${String.format("%.3f", indexTip.y)}, middle=${String.format("%.3f", middleTip.y)}, ring=${String.format("%.3f", ringTip.y)}, pinky=${String.format("%.3f", pinkyTip.y)}")
+            Log.d(TAG, "  PIP Y positions: index=${String.format("%.3f", indexPIP.y)}, middle=${String.format("%.3f", middlePIP.y)}, ring=${String.format("%.3f", ringPIP.y)}, pinky=${String.format("%.3f", pinkyPIP.y)}")
         }
         Log.d(TAG, "========================================")
     }
@@ -253,45 +211,26 @@ class VideoProcessor(private val context: Context) {
             // Calculate hand size
             val handSize = sqrt(
                 (middleTip.x - wrist.x).pow(2) +
-                        (middleTip.y - wrist.y).pow(2)
+                (middleTip.y - wrist.y).pow(2)
             )
 
             // Calculate extension ratios
             val middleTipMCP = sqrt(
                 (middleTip.x - middleMCP.x).pow(2) +
-                        (middleTip.y - middleMCP.y).pow(2)
+                (middleTip.y - middleMCP.y).pow(2)
             )
             val ringTipMCP = sqrt(
                 (ringTip.x - ringMCP.x).pow(2) +
-                        (ringTip.y - ringMCP.y).pow(2)
+                (ringTip.y - ringMCP.y).pow(2)
             )
 
             val middleExtensionRatio = middleTipMCP / handSize
             val ringExtensionRatio = ringTipMCP / handSize
 
             Log.d(TAG, "Template #$index:")
-            Log.d(
-                TAG,
-                "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}"
-            )
-            Log.d(
-                TAG,
-                "  Middle extension ratio: ${
-                    String.format(
-                        "%.3f",
-                        middleExtensionRatio
-                    )
-                } (${if (middleExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})"
-            )
-            Log.d(
-                TAG,
-                "  Ring extension ratio: ${
-                    String.format(
-                        "%.3f",
-                        ringExtensionRatio
-                    )
-                } (${if (ringExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})"
-            )
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Middle extension ratio: ${String.format("%.3f", middleExtensionRatio)} (${if (middleExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})")
+            Log.d(TAG, "  Ring extension ratio: ${String.format("%.3f", ringExtensionRatio)} (${if (ringExtensionRatio < 0.20f) "CURLED" else "EXTENDED"})")
             Log.d(TAG, "  Hand size: ${String.format("%.3f", handSize)}")
         }
         Log.d(TAG, "========================================")
@@ -333,19 +272,19 @@ class VideoProcessor(private val context: Context) {
             // Calculate finger extensions
             val indexExtension = sqrt(
                 (indexTip.x - indexMCP.x).pow(2) +
-                        (indexTip.y - indexMCP.y).pow(2)
+                (indexTip.y - indexMCP.y).pow(2)
             )
             val middleExtension = sqrt(
                 (middleTip.x - middleMCP.x).pow(2) +
-                        (middleTip.y - middleMCP.y).pow(2)
+                (middleTip.y - middleMCP.y).pow(2)
             )
             val ringExtension = sqrt(
                 (ringTip.x - ringMCP.x).pow(2) +
-                        (ringTip.y - ringMCP.y).pow(2)
+                (ringTip.y - ringMCP.y).pow(2)
             )
             val pinkyExtension = sqrt(
                 (pinkyTip.x - pinkyMCP.x).pow(2) +
-                        (pinkyTip.y - pinkyMCP.y).pow(2)
+                (pinkyTip.y - pinkyMCP.y).pow(2)
             )
 
             // Calculate finger spread between middle and pinky
@@ -360,57 +299,12 @@ class VideoProcessor(private val context: Context) {
 
             Log.d(TAG, "Template #$index:")
             Log.d(TAG, "  Source video: ${template.sourceVideo}")
-            Log.d(
-                TAG,
-                "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}"
-            )
-            Log.d(
-                TAG,
-                "  Tip Y: index=${String.format("%.3f", indexTip.y)}, middle=${
-                    String.format(
-                        "%.3f",
-                        middleTip.y
-                    )
-                }, ring=${String.format("%.3f", ringTip.y)}, pinky=${
-                    String.format(
-                        "%.3f",
-                        pinkyTip.y
-                    )
-                }"
-            )
-            Log.d(
-                TAG,
-                "  MCP Y: index=${String.format("%.3f", indexMCP.y)}, middle=${
-                    String.format(
-                        "%.3f",
-                        middleMCP.y
-                    )
-                }, ring=${String.format("%.3f", ringMCP.y)}, pinky=${
-                    String.format(
-                        "%.3f",
-                        pinkyMCP.y
-                    )
-                }"
-            )
-            Log.d(
-                TAG,
-                "  Extended count: $extendedCount/4 (index=$indexExtended, middle=$middleExtended, ring=$ringExtended, pinky=$pinkyExtended)"
-            )
+            Log.d(TAG, "  Wrist: X=${String.format("%.3f", wrist.x)}, Y=${String.format("%.3f", wrist.y)}")
+            Log.d(TAG, "  Tip Y: index=${String.format("%.3f", indexTip.y)}, middle=${String.format("%.3f", middleTip.y)}, ring=${String.format("%.3f", ringTip.y)}, pinky=${String.format("%.3f", pinkyTip.y)}")
+            Log.d(TAG, "  MCP Y: index=${String.format("%.3f", indexMCP.y)}, middle=${String.format("%.3f", middleMCP.y)}, ring=${String.format("%.3f", ringMCP.y)}, pinky=${String.format("%.3f", pinkyMCP.y)}")
+            Log.d(TAG, "  Extended count: $extendedCount/4 (index=$indexExtended, middle=$middleExtended, ring=$ringExtended, pinky=$pinkyExtended)")
             Log.d(TAG, "  Finger spread (middle-pinky): ${String.format("%.3f", fingerSpread)}")
-            Log.d(
-                TAG,
-                "  Extension lengths: index=${
-                    String.format(
-                        "%.3f",
-                        indexExtension
-                    )
-                }, middle=${String.format("%.3f", middleExtension)}, ring=${
-                    String.format(
-                        "%.3f",
-                        ringExtension
-                    )
-                }, pinky=${String.format("%.3f", pinkyExtension)}"
-            )
+            Log.d(TAG, "  Extension lengths: index=${String.format("%.3f", indexExtension)}, middle=${String.format("%.3f", middleExtension)}, ring=${String.format("%.3f", ringExtension)}, pinky=${String.format("%.3f", pinkyExtension)}")
         }
         Log.d(TAG, "========================================")
     }
@@ -430,10 +324,8 @@ class VideoProcessor(private val context: Context) {
         // 2. More forward (lower z value - closer to camera)
         // 3. More centered (x closer to 0.5)
 
-        val hand0Score =
-            hand0Wrist.y() + (hand0Wrist.z() * 0.5f) + kotlin.math.abs(hand0Wrist.x() - 0.5f) * 0.3f
-        val hand1Score =
-            hand1Wrist.y() + (hand1Wrist.z() * 0.5f) + kotlin.math.abs(hand1Wrist.x() - 0.5f) * 0.3f
+        val hand0Score = hand0Wrist.y() + (hand0Wrist.z() * 0.5f) + kotlin.math.abs(hand0Wrist.x() - 0.5f) * 0.3f
+        val hand1Score = hand1Wrist.y() + (hand1Wrist.z() * 0.5f) + kotlin.math.abs(hand1Wrist.x() - 0.5f) * 0.3f
 
         return if (hand0Score < hand1Score) 0 else 1
     }
@@ -501,43 +393,9 @@ class VideoProcessor(private val context: Context) {
         for (videoUri in videoUris) {
             try {
                 val videoPath = getTempFileFromUri(context, videoUri)
-                Log.d(TAG, "📁 '$label': Temp file path = $videoPath")
                 if (videoPath != null) {
                     val frames = extractKeyFramesFromVideo(videoPath)
-                    Log.d(TAG, "🎬 '$label': Extracted ${frames.size} frames from video")
                     val framesLandmarks = mutableListOf<List<Point3D>>()
-
-                    // Debug: check first frame properties
-                    if (frames.isNotEmpty()) {
-                        val sample = frames[0]
-                        val pixel = sample.getPixel(sample.width / 2, sample.height / 2)
-                        val r = (pixel shr 16) and 0xFF
-                        val g = (pixel shr 8) and 0xFF
-                        val b = pixel and 0xFF
-                        Log.d(
-                            TAG, "🖼️ '$label' frame[0]: ${sample.width}x${sample.height}, " +
-                                    "center pixel RGB=($r,$g,$b)"
-                        )
-                        // Save first frame to Downloads for visual inspection
-                        try {
-                            val debugFile = java.io.File(
-                                android.os.Environment.getExternalStoragePublicDirectory(
-                                    android.os.Environment.DIRECTORY_DOWNLOADS
-                                ),
-                                "debug_${label}_${System.currentTimeMillis()}.jpg"
-                            )
-                            java.io.FileOutputStream(debugFile).use { fos ->
-                                sample.compress(
-                                    android.graphics.Bitmap.CompressFormat.JPEG,
-                                    90,
-                                    fos
-                                )
-                            }
-                            Log.d(TAG, "🖼️ Debug frame saved to: ${debugFile.absolutePath}")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to save debug frame", e)
-                        }
-                    }
 
                     for (bitmap in frames) {
                         val mpImage = BitmapImageBuilder(bitmap).build()
@@ -546,7 +404,7 @@ class VideoProcessor(private val context: Context) {
                         if (result != null && result.landmarks().isNotEmpty()) {
                             // ⭐ ตรวจสอบจำนวนมือที่ตรวจพบ
                             val detectedHands = result.landmarks().size
-
+                            Log.d(TAG, "checking template $label: $detectedHands hand(s)")
 
                             // Handle the case where we want 1 hand but detect 2
                             if (numHands == 1 && detectedHands >= 1) {
@@ -590,11 +448,10 @@ class VideoProcessor(private val context: Context) {
                             TAG,
                             "✅ Added template for '$label' from $videoUri (${signTemplates[label]!!.size} total)"
                         )
-                        Log.i(TAG, "🎉 '$label': Template created successfully")
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error processing video for '$label': $videoUri", e)
+                Log.e(TAG, "Error processing video: $videoUri", e)
             }
         }
         Log.i(TAG, "📦 '$label' now has ${signTemplates[label]?.size ?: 0} templates")
@@ -605,47 +462,28 @@ class VideoProcessor(private val context: Context) {
         word: String
     ): Boolean {
         // Only check hand count - let template matching handle the rest
-        val config = SignLanguageConfig.getWordByName(word)
+        val config =
+
+            SignLanguageConfig.getWordByName(word)
         val requiredHands = config?.numHands ?: 1
         val actualHands = landmarks.landmarks.size / 21
-        Log.d(
-            TAG, "🔍 Checking hand count: $word required=$requiredHands, actual=$actualHands" +
-                    "landmarks size = ${landmarks.landmarks.size}"
-        )
+        Log.d(TAG, "🔍 Checking hand count: $word required=$requiredHands, actual=$actualHands" +
+                "landmarks size = ${landmarks.landmarks.size}")
         // Basic hand count check
         if (actualHands < requiredHands) {
             return false
         }
-        var wristX = 0f
-        var wristY = 0f
-        var wrist2X = 0f
-        var wrist2Y = 0f
+
         // Log wrist position for debugging
         if (actualHands >= 1) {
-            wristX = landmarks.landmarks[0].x
-            wristY = landmarks.landmarks[0].y
-            Log.d(
-                TAG,
-                "   👋 Hand 1 wrist: X=${String.format("%.3f", wristX)}, Y=${
-                    String.format(
-                        "%.3f",
-                        wristY
-                    )
-                }"
-            )
+            val wristX = landmarks.landmarks[0].x
+            val wristY = landmarks.landmarks[0].y
+            Log.d(TAG, "   👋 Hand 1 wrist: X=${String.format("%.3f", wristX)}, Y=${String.format("%.3f", wristY)}")
         }
         if (actualHands >= 2) {
-            wrist2X = landmarks.landmarks[21].x
-            wrist2Y = landmarks.landmarks[21].y
-            Log.d(
-                TAG,
-                "   👋 Hand 2 wrist: X=${String.format("%.3f", wrist2X)}, Y=${
-                    String.format(
-                        "%.3f",
-                        wrist2Y
-                    )
-                }"
-            )
+            val wrist2X = landmarks.landmarks[21].x
+            val wrist2Y = landmarks.landmarks[21].y
+            Log.d(TAG, "   👋 Hand 2 wrist: X=${String.format("%.3f", wrist2X)}, Y=${String.format("%.3f", wrist2Y)}")
         }
 
         val fingerStates = featureExtractor.detectFingerStates(landmarks)
@@ -655,10 +493,7 @@ class VideoProcessor(private val context: Context) {
         val pinkyTipY = landmarks.landmarks[20].y // Pinky finger tip
 
         Log.d(TAG, "Finger states: $fingerStates")
-        Log.d(
-            TAG,
-            "indexTipY=$indexTipY, middleTipY=$middleTipY, ringTipY=$ringTipY, pinkyTipY=$pinkyTipY"
-        )
+        Log.d(TAG, "indexTipY=$indexTipY, middleTipY=$middleTipY, ringTipY=$ringTipY, pinkyTipY=$pinkyTipY")
         // Additional checks for 2-hand signs to distinguish them
         if (actualHands >= 2 && landmarks.landmarks.size >= 42) {
             val leftWristX = landmarks.landmarks[0].x   // Left hand wrist
@@ -671,14 +506,8 @@ class VideoProcessor(private val context: Context) {
             val verticalDistance = kotlin.math.abs(leftWristY - rightWristY)
 
 
-            Log.d(
-                TAG, "   👐 Two-hand check for '$word': horizontalDist=${
-                    String.format(
-                        "%.3f",
-                        horizontalDistance
-                    )
-                }, verticalDist=${String.format("%.3f", verticalDistance)}"
-            )
+            Log.d(TAG, "   👐 Two-hand check for '$word': horizontalDist=${String.format("%.3f",
+                horizontalDistance)}, verticalDist=${String.format("%.3f", verticalDistance)}")
 
             when (word) {
                 "หาย" -> {
@@ -693,8 +522,7 @@ class VideoProcessor(private val context: Context) {
                     val isMoreHorizontal = horizontalDistance > verticalDistance * 1.5f
 
                     val hand1FingersOpen = fingerStates.take(5).sum()
-                    val hand2FingersOpen =
-                        if (fingerStates.size >= 10) fingerStates.slice(5..9).sum() else 0
+                    val hand2FingersOpen = if (fingerStates.size >= 10) fingerStates.slice(5..9).sum() else 0
                     val bothHandsOpen = hand1FingersOpen >= 3 && hand2FingersOpen >= 3
 
                     // 5. Distinguish from "บัตรประชาชน" (ID card):
@@ -707,19 +535,16 @@ class VideoProcessor(private val context: Context) {
                     // val result = bothHandsOpen && handsAtChestLevel && hasHorizontalSeparation
                     val result = handsAtChestLevel && notVerticallyStacked
 
-                    Log.d(
-                        TAG, "   หาย: result=$result" +
-                                "chestLevel=$handsAtChestLevel, bothHandsOpen=$bothHandsOpen " +
-                                "hasHorizontalSeparation=$hasHorizontalSeparation" +
-                                "notVerticallyStacked=$notVerticallyStacked" +
-                                "hDist=$horizontalDistance, vDist=$verticalDistance)"
-                    )
+                    Log.d(TAG, "   หาย: result=$result" +
+                            "chestLevel=$handsAtChestLevel, bothHandsOpen=$bothHandsOpen " +
+                            "hasHorizontalSeparation=$hasHorizontalSeparation" +
+                            "notVerticallyStacked=$notVerticallyStacked" +
+                            "hDist=$horizontalDistance, vDist=$verticalDistance)")
 
                     return result
 
 
                 }
-
                 "บัตรประชาชน" -> {
                     // ID Card: hands are horizontally apart (side by side)
                     val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
@@ -728,39 +553,22 @@ class VideoProcessor(private val context: Context) {
                     return isMoreHorizontal && handsAtWaist
 
                 }
-
                 "ช่วย" -> {
                     val handsHighEnough = leftWristY < 0.7f && rightWristY < 0.7f
                     val handsAreStacked = horizontalDistance < 0.3f
-                    Log.d(
-                        TAG, "handsHighEnough=$handsHighEnough" +
-                                "handsAreStacked=$handsAreStacked"
-                    )
+                    Log.d(TAG, "handsHighEnough=$handsHighEnough" +
+                    "handsAreStacked=$handsAreStacked")
                     return handsHighEnough && handsAreStacked
                 }
-
                 "เจ็บคอ" -> {
-                    // Neck ache: hands near neck (high position) and at same level (small vertical distance)
+                    // Neck ache: hands near neck (high position) and at same level (small vertical ```1distance)
                     val handsHighUp = leftWristY < 0.4f && rightWristY < 0.4f
                     val handsSameLevel = verticalDistance < 0.15f
                     val result = handsHighUp && handsSameLevel
-                    Log.d(
-                        TAG,
-                        "      เจ็บคอ: result=$result (highUp=$handsHighUp,  sameLevel=$handsSameLevel, leftY=${
-                            String.format(
-                                "%.3f",
-                                leftWristY
-                            )
-                        }, rightY=${
-                            String.format(
-                                "%.3f",
-                                rightWristY
-                            )
-                        })"
-                    )
+                    Log.d(TAG, "      เจ็บคอ: result=$result (highUp=$handsHighUp,  sameLevel=$handsSameLevel, leftY=${String.format("%.3f", leftWristY)}, rightY=${String.format("%.3f",
+                        rightWristY)})")
                     return result
                 }
-
                 "หนังสือเดินทาง" -> {
                     // Passport: thumbs are more apart horizontally (like open book)
                     val leftThumbX = landmarks.landmarks[4].x   // Left hand thumb tip
@@ -770,15 +578,7 @@ class VideoProcessor(private val context: Context) {
                     val thumbsWideApart = thumbHorizontalDistance > 0.35f
                     val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
                     val result = thumbsWideApart && handsAtSameLevel && handsAtWaist
-                    Log.d(
-                        TAG,
-                        "      หนังสือเดินทาง: result=$result (thumbsApart=$thumbsWideApart, thumbDist=${
-                            String.format(
-                                "%.3f",
-                                thumbHorizontalDistance
-                            )
-                        }, sameLevel=$handsAtSameLevel)"
-                    )
+                    Log.d(TAG, "      หนังสือเดินทาง: result=$result (thumbsApart=$thumbsWideApart, thumbDist=${String.format("%.3f", thumbHorizontalDistance)}, sameLevel=$handsAtSameLevel)")
                     return result
                 }
 
@@ -798,17 +598,6 @@ class VideoProcessor(private val context: Context) {
                     // Toilet: fingers are extended outward (spread apart)
                     // This works regardless of user height, hand size, or camera distance
 
-                    if (wristY > 0.70f) {
-                        Log.d(TAG, " ❌ ปวดหัว: hand too low, not near forehead (wristY=${wristY}")
-                        return false
-                    }
-
-                    // Headache = curled fingers (fist); Sick = extend fingers (open palm)
-                    val nonThumbExtended = index + middle + ring + pinky
-                    if (nonThumbExtended >= 2) {
-                        Log.d(TAG, "❌ ปวดหัว: fingers should be curled, nonThumbExtended=$nonThumbExtended")
-                        return false
-                    }
                     val wrist = landmarks.landmarks[0]
                     val indexTip = landmarks.landmarks[8]
                     val middleTip = landmarks.landmarks[12]
@@ -818,53 +607,41 @@ class VideoProcessor(private val context: Context) {
                     // Calculate hand size for normalization (distance from wrist to middle fingertip)
                     val handSize = sqrt(
                         (middleTip.x - wrist.x).pow(2) +
-                                (middleTip.y - wrist.y).pow(2)
+                        (middleTip.y - wrist.y).pow(2)
                     )
 
                     // 1. Calculate centroid of all 4 fingertips
-                    val fingertipCentroidX =
-                        (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
-                    val fingertipCentroidY =
-                        (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
+                    val fingertipCentroidX = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
+                    val fingertipCentroidY = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
 
                     // 2. Calculate distance from each fingertip to centroid
                     val indexDistToCentroid = sqrt(
                         (indexTip.x - fingertipCentroidX).pow(2) +
-                                (indexTip.y - fingertipCentroidY).pow(2)
+                        (indexTip.y - fingertipCentroidY).pow(2)
                     )
                     val middleDistToCentroid = sqrt(
                         (middleTip.x - fingertipCentroidX).pow(2) +
-                                (middleTip.y - fingertipCentroidY).pow(2)
+                        (middleTip.y - fingertipCentroidY).pow(2)
                     )
                     val ringDistToCentroid = sqrt(
                         (ringTip.x - fingertipCentroidX).pow(2) +
-                                (ringTip.y - fingertipCentroidY).pow(2)
+                        (ringTip.y - fingertipCentroidY).pow(2)
                     )
                     val pinkyDistToCentroid = sqrt(
                         (pinkyTip.x - fingertipCentroidX).pow(2) +
-                                (pinkyTip.y - fingertipCentroidY).pow(2)
+                        (pinkyTip.y - fingertipCentroidY).pow(2)
                     )
 
                     // 3. Calculate average cluster spread (normalized by hand size)
-                    val avgClusterSpread =
-                        (indexDistToCentroid + middleDistToCentroid + ringDistToCentroid + pinkyDistToCentroid) / 4.0
+                    val avgClusterSpread = (indexDistToCentroid + middleDistToCentroid + ringDistToCentroid + pinkyDistToCentroid) / 4.0
                     val clusterSpreadRatio = (avgClusterSpread / handSize).toFloat()
 
                     // 4. Headache: fingertips clustered tightly (small ratio)
                     //    Toilet: fingers extended outward (larger ratio)
-                    Log.d(
-                        TAG,
-                        "   ปวดหัว: clusterSpreadRatio=$clusterSpreadRatio (handSize=$handSize, avgClusterSpread=$avgClusterSpread)"
-                    )
+                    Log.d(TAG, "   ปวดหัว: clusterSpreadRatio=$clusterSpreadRatio (handSize=$handSize, avgClusterSpread=$avgClusterSpread)")
 
-                    Log.d(
-                        TAG,
-                        "   🤕 ปวดหัว: clusterSpreadRatio=$clusterSpreadRatio (threshold=0.12)"
-                    )
-
-
-                    if (clusterSpreadRatio > 0.50f) {
-                        Log.d(TAG, "   ❌ ปวดหัว: fingertips too spread out, clusterRatio is $clusterSpreadRatio")
+                    if (clusterSpreadRatio > 0.16f) {
+                        Log.d(TAG, "   ❌ ปวดหัว: fingertips too spread out, might be toilet or airplane")
                         return false
                     }
 
@@ -878,11 +655,7 @@ class VideoProcessor(private val context: Context) {
                     Log.d(TAG, "   ✅ ปวดหัว: fingertips tightly clustered")
                     return true
                 }
-
                 "เครื่องบิน" -> {
-                    if (wristY < 0.25) {
-                        return false
-                    }
                     // Airplane: Pinky/index/thumb are extended as "wings", middle/ring are LESS extended
                     // KEY DISTINCTION FROM TOILET: Wing fingers (pinky, index) extend MORE than middle/ring
                     // Toilet: ALL fingers have similar extension
@@ -894,25 +667,25 @@ class VideoProcessor(private val context: Context) {
                     val pinkyTip = landmarks.landmarks[20]
                     val handSize = sqrt(
                         (middleTip.x - wrist.x).pow(2) +
-                                (middleTip.y - wrist.y).pow(2)
+                        (middleTip.y - wrist.y).pow(2)
                     )
 
                     // Calculate extension ratios for all fingers
                     val middleTipMCP = sqrt(
                         (middleTip.x - landmarks.landmarks[9].x).pow(2) +
-                                (middleTip.y - landmarks.landmarks[9].y).pow(2)
+                        (middleTip.y - landmarks.landmarks[9].y).pow(2)
                     )
                     val ringTipMCP = sqrt(
                         (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
-                                (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+                        (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
                     )
                     val indexTipMCP = sqrt(
                         (indexTip.x - landmarks.landmarks[5].x).pow(2) +
-                                (indexTip.y - landmarks.landmarks[5].y).pow(2)
+                        (indexTip.y - landmarks.landmarks[5].y).pow(2)
                     )
                     val pinkyTipMCP = sqrt(
                         (pinkyTip.x - landmarks.landmarks[17].x).pow(2) +
-                                (pinkyTip.y - landmarks.landmarks[17].y).pow(2)
+                        (pinkyTip.y - landmarks.landmarks[17].y).pow(2)
                     )
 
                     val middleExtensionRatio = middleTipMCP / handSize
@@ -921,64 +694,40 @@ class VideoProcessor(private val context: Context) {
                     val pinkyExtensionRatio = pinkyTipMCP / handSize
 
                     // Airplane: Wing fingers (pinky, index) should be MORE extended than middle/ring
-                    val pinkyMoreExtendedThanMiddle =
-                        pinkyExtensionRatio > middleExtensionRatio + 0.08f
-                    val indexMoreExtendedThanMiddle =
-                        indexExtensionRatio > middleExtensionRatio + 0.08f
+                    val pinkyMoreExtendedThanMiddle = pinkyExtensionRatio > middleExtensionRatio + 0.08f
+                    val indexMoreExtendedThanMiddle = indexExtensionRatio > middleExtensionRatio + 0.08f
 
                     val wingsExtended = pinkyMoreExtendedThanMiddle || indexMoreExtendedThanMiddle
 
                     if (!wingsExtended) {
-                        Log.d(
-                            TAG,
-                            "   ❌ Airplane: wing fingers should be more extended than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)"
-                        )
+                        Log.d(TAG, "   ❌ Airplane: wing fingers should be more extended than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
                         return false
                     }
 
-                    Log.d(
-                        TAG,
-                        "   ✅ Airplane: wing fingers extended more than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)"
-                    )
+                    Log.d(TAG, "   ✅ Airplane: wing fingers extended more than middle/ring (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
                     return true
                 }
-
                 "ห้องน้ำ" -> {
-                    // Toilet: Open hand gesture at waist level
-                    // KEY DISTINCTION: Toilet is made at WAIST (high Y), not at HEAD (low Y like headache)
+                    // Toilet: Open hand gesture - detect by finger spread, not binary extended/curl
+                    // Use RATIOS to work regardless of hand size or camera distance
 
+                    // Calculate hand size (wrist to middle fingertip distance)
                     val wrist = landmarks.landmarks[0]
-                    val wristY = wrist.y
-
-                    // Check 1: Hand must be low enough (waist level, not forehead level)
-                    // The real toilet gesture should be at waist level (Y ≈ 0.40–0.90).
-                    // Headache: wrist Y ~0.2-0.3 (high up)
-                    // Toilet: wrist Y ~0.4+ (lower down)
-                    val handLowEnough = wristY > 0.40f && wristY < 0.90f
-
-                    if (!handLowEnough) {
-                        Log.v(
-                            TAG,
-                            "ห้องน้ำ: hand too high, looks like headache gesture (wristY=$wristY)"
-                        )
-                        return false
-                    }
-
-                    // Check 2: Middle and ring fingers are extended (not curled like airplane)
-                    // Use ratio: extension length / hand size
                     val middleTip = landmarks.landmarks[12]
                     val handSize = sqrt(
                         (middleTip.x - wrist.x).pow(2) +
-                                (middleTip.y - wrist.y).pow(2)
+                        (middleTip.y - wrist.y).pow(2)
                     )
 
+                    // Check 1: Middle and ring fingers are extended (not curled like airplane)
+                    // Use ratio: extension length / hand size
                     val middleTipMCP = sqrt(
                         (middleTip.x - landmarks.landmarks[9].x).pow(2) +
-                                (middleTip.y - landmarks.landmarks[9].y).pow(2)
+                        (middleTip.y - landmarks.landmarks[9].y).pow(2)
                     )
                     val ringTipMCP = sqrt(
                         (landmarks.landmarks[16].x - landmarks.landmarks[13].x).pow(2) +
-                                (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
+                        (landmarks.landmarks[16].y - landmarks.landmarks[13].y).pow(2)
                     )
 
                     val middleExtensionRatio = middleTipMCP / handSize
@@ -987,39 +736,15 @@ class VideoProcessor(private val context: Context) {
                     // For toilet: fingers should be extended (> 35% of hand size)
                     // For airplane: middle/ring are curled (< 25% of hand size)
                     val fingersExtended = middleExtensionRatio > 0.25f && ringExtensionRatio > 0.25f
+
                     if (!fingersExtended) {
-                        Log.v(
-                            TAG,
-                            "ห้องน้ำ: fingers not extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio, handSize=$handSize)"
-                        )
+                        Log.v(TAG, "ห้องน้ำ: fingers not extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio, handSize=$handSize)")
                         return false
                     }
 
-                    // Reject if looks like airplane (pinky/index much more extended than middle/ring)
-                    val indexTipMCP = sqrt(
-                        (landmarks.landmarks[8].x - landmarks.landmarks[5].x).pow(2) +
-                                (landmarks.landmarks[8].y - landmarks.landmarks[5].y).pow(2)
-                    )
-                    val pinkyTipMCP = sqrt(
-                        (landmarks.landmarks[20].x - landmarks.landmarks[17].x).pow(2) +
-                                (landmarks.landmarks[20].y - landmarks.landmarks[17].y).pow(2)
-                    )
-                    val indexExtensionRatio = indexTipMCP / handSize
-                    val pinkyExtensionRatio = pinkyTipMCP / handSize
-                    if (pinkyExtensionRatio > middleExtensionRatio + 0.08f ||
-                        indexExtensionRatio > middleExtensionRatio + 0.08f) {
-                        Log.d(TAG, "   ห้องน้ำ: looks like airplane (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
-                        return false
-                    }
-
-
-                    Log.v(
-                        TAG,
-                        " ✅ ห้องน้ำ: valid toilet gesture (wristY=$wristY, middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)"
-                    )
+                    Log.v(TAG, "ห้องน้ำ: fingers are extended (middleRatio=$middleExtensionRatio, ringRatio=$ringExtensionRatio)")
                     return true
                 }
-
                 "แจ้งความ" -> {
                     // Report: index finger should point up (key distinguishing feature from headache)
                     // Use RELATIVE measurements (not absolute Y position) to work regardless of user height
@@ -1041,79 +766,16 @@ class VideoProcessor(private val context: Context) {
 
                     val result = indexIsHighest && indexPointingUp && indexHigherThanMiddle
 
-                    Log.d(
-                        TAG, "แจ้งความ indexIsHighest=$indexIsHighest, " +
-                                "indexPointingUp=$indexPointingUp, indexHigherThanMiddle=$indexHigherThanMiddle, " +
-                                "wristY=$wristY, indexTipY=$indexTipY"
-                    )
+                    Log.d(TAG, "แจ้งความ indexIsHighest=$indexIsHighest, " +
+                            "indexPointingUp=$indexPointingUp, indexHigherThanMiddle=$indexHigherThanMiddle, " +
+                            "wristY=$wristY, indexTipY=$indexTipY")
                     return result
-                }
-
-                "ไม่สบาย" -> {
-                    // 🩺 ไม่สบาย: มือเดียว ฝ่ามือเปิด แตะที่หน้าผาก (เช็คว่ามีไข้)
-                    //
-                    // จุดต่างจากท่าใกล้เคียง:
-                    //   - ปวดหัว: นิ้วทั้งหมดรวม "กระจุก" กันแตะหน้าผาก   → fingertip cluster แคบ
-                    //   - แจ้งความ: ชี้นิ้วเดียว (index)                  → นิ้วเดียวยืด
-                    //   - ไม่สบาย: ฝ่ามือ "แบ" แตะหน้าผาก                 → นิ้วยืดหลายนิ้ว และกระจาย
-
-                    val wrist = landmarks.landmarks[0]
-                    val wristY = wrist.y
-
-                    // 1) มือต้องอยู่ระดับสูง (ใกล้หน้าผาก)
-                    val handHighEnough = wristY < 0.55f
-                    if (!handHighEnough) {
-                        Log.d(TAG, "   ไม่สบาย: hand not high enough (wristY=$wristY)")
-                        return false
-                    }
-
-                    // 2) นิ้วต้องยืดอย่างน้อย 2 นิ้ว (ฝ่ามือเปิด ไม่ใช่กำมือเหมือนปวดหัว)
-                    val nonThumbExtended = index + middle + ring + pinky
-                    if (nonThumbExtended < 2) {
-                        Log.d(TAG, "   ไม่สบาย: only $nonThumbExtended/4 fingers extended (need ≥2)")
-                        return false
-                    }
-
-                        // 3) ต้องไม่ใช่ "ปวดหัว" — เช็ค fingertip cluster ว่ากระจาย ไม่กระจุก
-                    val indexTip = landmarks.landmarks[8]
-                    val middleTip = landmarks.landmarks[12]
-                    val ringTip = landmarks.landmarks[16]
-                    val pinkyTip = landmarks.landmarks[20]
-                    val handSize = sqrt(
-                        (middleTip.x - wrist.x).pow(2) +
-                                (middleTip.y - wrist.y).pow(2)
-                    )
-                    val cx = (indexTip.x + middleTip.x + ringTip.x + pinkyTip.x) / 4.0
-                    val cy = (indexTip.y + middleTip.y + ringTip.y + pinkyTip.y) / 4.0
-                    val avgSpread = (
-                            sqrt((indexTip.x - cx).pow(2) + (indexTip.y - cy).pow(2)) +
-                                    sqrt((middleTip.x - cx).pow(2) + (middleTip.y - cy).pow(2)) +
-                                    sqrt((ringTip.x - cx).pow(2) + (ringTip.y - cy).pow(2)) +
-                                    sqrt((pinkyTip.x - cx).pow(2) + (pinkyTip.y - cy).pow(2))
-                            ) / 4.0
-                    val spreadRatio = (avgSpread / handSize).toFloat()
-
-                    // Around line 820 - after handHighEnough check
-                    Log.d(TAG, "   🩺 ไม่สบาย: wristY=$wristY, handHighEnough=$handHighEnough")
-
-
-                    // Around line 850 - after cluster spread check
-                    Log.d(TAG, "   🩺 ไม่สบาย: spreadRatio=$spreadRatio (threshold=0.10)")
-
-                    if (spreadRatio < 0.10f) {
-                        Log.d(
-                            TAG,
-                            "   ไม่สบาย: fingers too clustered, looks like ปวดหัว (spreadRatio=$spreadRatio)"
-                        )
-                        return false
-                    }
-
-                    return true
                 }
             }
         }
-        Log.d(TAG, "   ❌ '$word': no matching gesture check for $actualHands hands")
-        return false
+
+        return true
+
     }
     private fun getTempFileFromUri(context: Context, uri: Uri): String? {
         return try {
@@ -1136,33 +798,22 @@ class VideoProcessor(private val context: Context) {
         val frames = mutableListOf<Bitmap>()
 
         try {
+            // Use MediaMetadataRetriever to extract frames
             val retriever = android.media.MediaMetadataRetriever()
             retriever.setDataSource(videoPath)
 
+            // Get video duration
             val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             val duration = durationStr?.toLong() ?: 0
 
-            // Get video rotation — front camera videos often have 90° or 270° metadata
-            val rotationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
-            val rotation = rotationStr?.toIntOrNull() ?: 0
-
-            val interval = if (duration < 5000) 100L else 500L
+            // Extract frames at regular intervals (e.g., every 500ms)
+            val interval = 500L // milliseconds
             for (time in 0 until duration step interval) {
                 val bitmap = retriever.getFrameAtTime(time * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                if (bitmap != null) {
-                    val rotated = if (rotation != 0) {
-                        val matrix = android.graphics.Matrix()
-                        matrix.postRotate(rotation.toFloat())
-                        android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-                    } else {
-                        bitmap
-                    }
-                    frames.add(rotated)
-                }
+                bitmap?.let { frames.add(it) }
             }
 
             retriever.release()
-            Log.d(TAG, "extractKeyFrames: $videoPath rotation=$rotation, ${frames.size} frames")
         } catch (e: Exception) {
             Log.e("VideoProcessor", "Error extracting frames from video: $videoPath", e)
         }
@@ -1183,11 +834,11 @@ class VideoProcessor(private val context: Context) {
             Log.w(TAG, "No templates loaded")
             return null
         }
-        val actualHands = currentGestureLandmarks.landmarks.size / 21
-        val numDetectedHands = minOf(numDetectedHands, actualHands)
         Log.d(TAG, "========================================")
         Log.d(TAG, "🔍 Detected hands: $numDetectedHands")
 
+        // Normalize current input
+        val normalizedCurrent = normalizeHandLandmarks(currentGestureLandmarks)
 
         var bestMatchLabel: String? = null
         var minDistance = Float.MAX_VALUE
@@ -1195,80 +846,40 @@ class VideoProcessor(private val context: Context) {
 
         // Iterate through all signs
         for ((label, templates) in signTemplates) {
-            // Check hand out compability
+            // Skip if hand count doesn't match
             val requiredHands = templates.firstOrNull()?.numHands ?: 1
-            if (requiredHands > numDetectedHands) {
-                Log.d(TAG, "   ❌ '$label' mismatched num hands: needs $requiredHands hands, got $numDetectedHands")
+            if (requiredHands != numDetectedHands) {
+                Log.d(TAG, "   ❌ '$label' skipped: needs $requiredHands hands, got $numDetectedHands")
                 continue
             }
 
-            // Check gesture characteristics and match against templates
-            var bestDistanceForSign = Float.MAX_VALUE
+            // Check gesture characteristics (hand position, alignment, etc.)
+            if (!checkGestureCharacteristics(currentGestureLandmarks, label)) {
+                Log.d(TAG, "   ❌ '$label' skipped: gesture characteristics don't match")
+                continue
+            }
 
-            if (requiredHands < numDetectedHands) {
-                // Sign needs fewer hands than detected — only use the ACTIVE hand
-                // to prevent resting hands from causing false matches (e.g. tall person's
-                // resting hand at Y≈0.80 matching toilet when they're making headache gesture)
-                var bestHandIdx = 0
-                var bestScore = Float.MAX_VALUE
-                for (handIdx in 0 until numDetectedHands) {
-                    val wrist = currentGestureLandmarks.landmarks[handIdx * 21]
-                    // Lower score = more active (higher position, more centered)
-                    val score = wrist.y + kotlin.math.abs(wrist.x - 0.5f) * 0.3f
-                    if (score < bestScore) {
-                        bestScore = score
-                        bestHandIdx = handIdx
-                    }
-                }
-
-                val start = bestHandIdx * 21
-                val end = minOf(start + 21, currentGestureLandmarks.landmarks.size)
-                if (end - start < 21) continue
-
-                val singleHandLandmarks = HandLandmarkData(
-                    currentGestureLandmarks.landmarks.subList(start, end)
-                )
-
-                Log.d(TAG, "   🖐️ Single-hand sign '$label': using active hand #$bestHandIdx (wristY=${String.format("%.3f", singleHandLandmarks.landmarks[0].y)})")
-
-                if (!checkGestureCharacteristics(singleHandLandmarks, label)) {
-                    Log.d(TAG, "   ❌ '$label' skipped: active hand didn't pass characteristics check")
-                    continue
-                }
-
-                val normalizedCurrent = normalizeHandLandmarks(singleHandLandmarks)
-                for (template in templates) {
-                    val normalizedTemplate = normalizeHandLandmarks(template.landmarks)
-                    if (normalizedCurrent.landmarks.size != normalizedTemplate.landmarks.size) continue
-                    val distance = calculateEuclideanDistance(normalizedCurrent, normalizedTemplate)
-                    if (distance < bestDistanceForSign) {
-                        bestDistanceForSign = distance
-                    }
-                }
+            // Trim current landmarks to match template
+            val requiredLandmarks = requiredHands * 21
+            val currentToCompare = if (currentGestureLandmarks.landmarks.size > requiredLandmarks) {
+                HandLandmarkData(currentGestureLandmarks.landmarks.take(requiredLandmarks))
             } else {
-                // Normal case: exact hand count match
-                if (!checkGestureCharacteristics(currentGestureLandmarks, label)) {
-                    Log.d(TAG, "   ❌ '$label' skipped: gesture characteristics don't match")
+                currentGestureLandmarks
+            }
+            val normalizedCurrentForCompare = normalizeHandLandmarks(currentToCompare)
+
+            // Find the BEST matching template for this sign
+            var bestDistanceForSign = Float.MAX_VALUE
+            for ((index, template) in templates.withIndex()) {
+                if (normalizedCurrentForCompare.landmarks.size != template.landmarks.landmarks.size) {
                     continue
                 }
 
-                val requiredLandmarks = requiredHands * 21
-                val currentToCompare = if (currentGestureLandmarks.landmarks.size > requiredLandmarks) {
-                    HandLandmarkData(currentGestureLandmarks.landmarks.take(requiredLandmarks))
-                } else {
-                    currentGestureLandmarks
-                }
-                val normalizedCurrentForCompare = normalizeHandLandmarks(currentToCompare)
+                val normalizedTemplate = normalizeHandLandmarks(template.landmarks)
+                val distance = calculateEuclideanDistance(normalizedCurrentForCompare, normalizedTemplate)
 
-                for ((index, template) in templates.withIndex()) {
-                    if (normalizedCurrentForCompare.landmarks.size != template.landmarks.landmarks.size) {
-                        continue
-                    }
-                    val normalizedTemplate = normalizeHandLandmarks(template.landmarks)
-                    val distance = calculateEuclideanDistance(normalizedCurrentForCompare, normalizedTemplate)
-                    if (distance < bestDistanceForSign) {
-                        bestDistanceForSign = distance
-                    }
+                if (distance < bestDistanceForSign) {
+                    bestDistanceForSign = distance
                 }
             }
 
@@ -1279,7 +890,7 @@ class VideoProcessor(private val context: Context) {
                 minDistance = bestDistanceForSign
                 bestMatchLabel = label
 
-                val maxDistance = if (requiredHands == 2) 3.5f else 3.0f
+                val maxDistance = if (requiredHands == 2) 3.5f else 2.0f
                 bestConfidence = max(0.0f, (1.0f - minDistance / maxDistance) * 100)
             }
         }
