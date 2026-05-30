@@ -150,7 +150,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
               //  Uri.parse("android.resource://$packageName/${R.raw.head_ache_test4}"),
                 ), 1)
             videoProcessor.createTemplateFromVideos("ช่วย", listOf(
-              //  Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.help_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test1}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test2}"),
                 Uri.parse("android.resource://$packageName/${R.raw.help_test3}"),
