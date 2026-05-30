@@ -22,69 +22,6 @@ data class SignWord(
 
 object SignLanguageConfig {
 
-    // สร้างข้อมูลเทมเพลตสำหรับท่าทาง "ช่วย" (แทนที่วิดีโอ)
-    // นี่คือตัวอย่างข้อมูลพิกัด (landmarks) ที่สมมติขึ้นสำหรับท่า "ช่วย"
-    // ในความเป็นจริง ข้อมูลนี้จะต้องถูกดึงออกมาจากไฟล์วิดีโอ help_main.mp4
-    val HELP_SIGN_TEMPLATE = HandLandmarkData(
-        landmarks = listOf(
-            Point3D(0.5f, 0.5f, 0.0f), // ข้อมือ (Wrist)
-            Point3D(0.4f, 0.6f, -0.1f), // โคนนิ้วโป้ง (Thumb CMC)
-            Point3D(0.35f, 0.65f, -0.2f), // ข้อนิ้วโป้ง (Thumb MCP)
-            Point3D(0.3f, 0.7f, -0.3f), // ปลายนิ้วโป้ง (Thumb IP)
-            Point3D(0.45f, 0.55f, 0.0f), // โคนนิ้วชี้ (Index Finger MCP)
-            Point3D(0.4f, 0.45f, -0.1f), // ข้อนิ้วชี้ (Index Finger PIP)
-            Point3D(0.35f, 0.35f, -0.2f), // ปลายนิ้วชี้ (Index Finger DIP)
-            Point3D(0.5f, 0.5f, 0.0f), // โคนนิ้วกลาง (Middle Finger MCP)
-            Point3D(0.5f, 0.4f, -0.1f), // ข้อนิ้วกลาง (Middle Finger PIP)
-            Point3D(0.5f, 0.3f, -0.2f), // ปลายนิ้วกลาง (Middle Finger DIP)
-            Point3D(0.6f, 0.55f, 0.0f), // โคนนิ้วนาง (Ring Finger MCP)
-            Point3D(0.65f, 0.45f, -0.1f), // ข้อนิ้วนาง (Ring Finger PIP)
-            Point3D(0.7f, 0.35f, -0.2f), // ปลายนิ้วนาง (Ring Finger DIP)
-            Point3D(0.7f, 0.5f, 0.0f), // โคนนิ้วก้อย (Pinky MCP)
-            Point3D(0.75f, 0.4f, -0.1f), // ข้อนิ้วก้อย (Pinky PIP)
-            Point3D(0.8f, 0.3f, -0.2f)  // ปลายนิ้วก้อย (Pinky DIP)
-        )
-    )
-
-    // 🩺 Template สังเคราะห์สำหรับท่า "ไม่สบาย"
-    // ลักษณะท่า: มือข้างเดียว ฝ่ามือเปิด แตะที่หน้าผาก (เช็คว่ามีไข้)
-    // - ข้อมือ (wrist) อยู่ใกล้ระดับศีรษะ (Y ~0.30 = อยู่ส่วนบนของกรอบภาพ)
-    // - นิ้วทุกนิ้วยืดขึ้น (tip Y < MCP Y) ไม่กำมือ
-    // - นิ้วกระจายออก (ไม่กระจุก) เพื่อแยกจากท่า "ปวดหัว"
-    // ☝️ เมื่อได้ไฟล์วิดีโอจริง ให้แทนที่ template นี้ด้วยการเรียก
-    //    videoProcessor.createTemplateFromVideos("ไม่สบาย", listOf(...), numHands = 1)
-    val SICK_SIGN_TEMPLATE = HandLandmarkData(
-        landmarks = listOf(
-            // ข้อมือยกอยู่ระดับหน้าผาก (Y = 0.30 = ส่วนบนของเฟรม)
-            Point3D(0.50f, 0.45f, 0.00f),  // 0: WRIST
-            // นิ้วโป้ง (กางออกด้านข้าง)
-            Point3D(0.42f, 0.42f, -0.02f), // 1: THUMB_CMC
-            Point3D(0.38f, 0.38f, -0.04f), // 2: THUMB_MCP
-            Point3D(0.36f, 0.34f, -0.05f), // 3: THUMB_IP
-            Point3D(0.34f, 0.30f, -0.06f), // 4: THUMB_TIP
-            // นิ้วชี้ (ยืดขึ้น)
-            Point3D(0.46f, 0.36f, 0.00f),  // 5: INDEX_MCP
-            Point3D(0.45f, 0.30f, -0.02f), // 6: INDEX_PIP
-            Point3D(0.44f, 0.25f, -0.04f), // 7: INDEX_DIP
-            Point3D(0.43f, 0.20f, -0.05f), // 8: INDEX_TIP
-            // นิ้วกลาง (ยืดขึ้น สูงสุด)
-            Point3D(0.50f, 0.36f, 0.00f),  // 9: MIDDLE_MCP
-            Point3D(0.50f, 0.29f, -0.02f), // 10: MIDDLE_PIP
-            Point3D(0.50f, 0.23f, -0.04f), // 11: MIDDLE_DIP
-            Point3D(0.50f, 0.18f, -0.05f), // 12: MIDDLE_TIP
-            // นิ้วนาง (ยืดขึ้น)
-            Point3D(0.54f, 0.36f, 0.00f),  // 13: RING_MCP
-            Point3D(0.55f, 0.30f, -0.02f), // 14: RING_PIP
-            Point3D(0.56f, 0.25f, -0.04f), // 15: RING_DIP
-            Point3D(0.57f, 0.20f, -0.05f), // 16: RING_TIP
-            // นิ้วก้อย (ยืดขึ้น)
-            Point3D(0.58f, 0.38f, 0.00f),  // 17: PINKY_MCP
-            Point3D(0.60f, 0.32f, -0.02f), // 18: PINKY_PIP
-            Point3D(0.62f, 0.27f, -0.04f), // 19: PINKY_DIP
-            Point3D(0.64f, 0.22f, -0.05f)  // 20: PINKY_TIP
-        )
-    )
-
     // 🎯 รายการคำศัพท์ทั้งหมด พร้อมระบุประเภทมือ
     val ALL_WORDS = listOf(
         // Phase 1: คำง่าย (เริ่มทดสอบจากนี้)
