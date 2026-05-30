@@ -131,8 +131,8 @@ object SignLanguageConfig {
             word = "ไม่สบาย",
             meaning = "รู้สึกไม่สบาย/มีไข้",
             category = "โรงพยาบาล",
-            mainVideoFile = "sick_main.mp4",                           // ยังไม่มีไฟล์วิดีโอ — ใช้ SICK_SIGN_TEMPLATE แทน
-            testVideoFiles = listOf<String>("sick_test1.mp4", "sick_test2.mp4"),            // ยังไม่มีไฟล์วิดีโอทดสอบ
+            mainVideoFile = "sick_main.mp4",
+            testVideoFiles = listOf<String>("sick_test1.mp4", "sick_test2.mp4"),            
 
             priority = 1,
             expectedAccuracy = 80,
