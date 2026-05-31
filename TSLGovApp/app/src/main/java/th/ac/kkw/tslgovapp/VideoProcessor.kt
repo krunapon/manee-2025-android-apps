@@ -1006,7 +1006,7 @@ class VideoProcessor(private val context: Context) {
                     )
                     val indexExtensionRatio = indexTipMCP / handSize
                     val pinkyExtensionRatio = pinkyTipMCP / handSize
-                    if (pinkyExtensionRatio > middleExtensionRatio + 0.08f ||
+                    if (pinkyExtensionRatio > middleExtensionRatio + 0.08f &&
                         indexExtensionRatio > middleExtensionRatio + 0.08f) {
                         Log.d(TAG, "   ห้องน้ำ: looks like airplane (indexRatio=$indexExtensionRatio, middleRatio=$middleExtensionRatio, pinkyRatio=$pinkyExtensionRatio)")
                         return false

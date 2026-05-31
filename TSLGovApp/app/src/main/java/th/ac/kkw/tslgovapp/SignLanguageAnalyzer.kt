@@ -997,8 +997,8 @@ class SignLanguageAnalyzer(
         val verticalDistance = abs(hand1WristY - hand2WristY)
         val horizontalDistance = abs(hand1WristX - hand2WristX)
 
-        val hasVerticalSeparation = verticalDistance > 0.12f
-        val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.6f
+        val hasVerticalSeparation = verticalDistance > 0.09f
+        val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.4f
         val handsAreStacked = horizontalDistance < 0.3f
         val result = handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
 

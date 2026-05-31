@@ -42,7 +42,7 @@ class HandCountTracker {
 
         // Higher confidence required to change from an already-locked state
         // This prevents flickering when the hand count is ambiguous
-        private const val CHANGE_THRESHOLD = 0.8f  // 80% to change locked value
+        private const val CHANGE_THRESHOLD = 0.67f  // 67% to change locked value
     }
         /**
          * History of hand detections.
