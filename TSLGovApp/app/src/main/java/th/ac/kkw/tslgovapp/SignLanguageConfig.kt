@@ -132,7 +132,7 @@ object SignLanguageConfig {
             meaning = "รู้สึกไม่สบาย/มีไข้",
             category = "โรงพยาบาล",
             mainVideoFile = "sick_main.mp4",
-            testVideoFiles = listOf<String>("sick_test1.mp4", "sick_test2.mp4"),            
+            testVideoFiles = listOf<String>("sick_test1.mp4", "sick_test2.mp4"),
 
             priority = 1,
             expectedAccuracy = 80,

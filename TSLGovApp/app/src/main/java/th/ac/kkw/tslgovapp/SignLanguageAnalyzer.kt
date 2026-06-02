@@ -218,9 +218,9 @@ class SignLanguageAnalyzer(
         // Adaptive threshold: larger hadns (clsoer camera) = lwoer Y threshold acceptable
         // Smaller hands (farther camera) = Y values will naturally be smalelr
         val adaptiveThreshold = when {
-            handSize > 0.4f -> 0.75f // Large hands (close) - must be higher in frame
-            handSize > 0.25f -> 0.80f // Medium hands
-            else -> 0.85f  // Small hands (far) - allow more of frame
+            handSize > 0.4f -> 0.92f // Large hands (close) - must be higher in frame
+            handSize > 0.25f -> 0.90f // Medium hands
+            else -> 0.88f  // Small hands (far) - allow more of frame
         }
 
         val inPosition = avgWristY < adaptiveThreshold
@@ -991,22 +991,15 @@ class SignLanguageAnalyzer(
         val hand1WristX = landmarks.landmarks[0].x
         val hand2WristX = landmarks.landmarks[21].x
 
-        // Help: hands must be in upper position (less than 0.65) of frame (not at sides)
-        val handsHighEnough = hand1WristY < 0.6f && hand2WristY < 0.6f
-
-        val verticalDistance = abs(hand1WristY - hand2WristY)
+        // Help: hands must be in upper position (less than 0.75) of frame (not at sides)
+        val handsHighEnough = hand1WristY < 0.75f && hand2WristY < 0.75f
         val horizontalDistance = abs(hand1WristX - hand2WristX)
-
-        val hasVerticalSeparation = verticalDistance > 0.09f
-        val isMoreVerticalThanHorizontal = verticalDistance >= horizontalDistance * 0.4f
         val handsAreStacked = horizontalDistance < 0.3f
-        val result = handsHighEnough && hasVerticalSeparation && isMoreVerticalThanHorizontal && handsAreStacked
+        val result = handsHighEnough  && handsAreStacked
 
         Log.d(TAG, "🆘 ช่วย: result=$result, handsHighEnough=$handsHighEnough " +
-                "hasVerticalSeparation=$hasVerticalSeparation " +
-                "isMoreVerticalThanHorizontal=$isMoreVerticalThanHorizontal " +
                 "handsAreStacked=$handsAreStacked " +
-                "(h1Y=${String.format("%.2f", hand1WristY)}, h2Y=${String.format("%.2f", hand2WristY)}, vDist=${String.format("%.2f", verticalDistance)}, hDist=${String.format("%.2f", horizontalDistance)})")
+                "(h1Y=${String.format("%.2f", hand1WristY)}, h2Y=${String.format("%.2f", hand2WristY)}, hDist=${String.format("%.2f", horizontalDistance)})")
         return result
 
     }

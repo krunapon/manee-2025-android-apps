@@ -660,7 +660,7 @@ class VideoProcessor(private val context: Context) {
             "indexTipY=$indexTipY, middleTipY=$middleTipY, ringTipY=$ringTipY, pinkyTipY=$pinkyTipY"
         )
         // Additional checks for 2-hand signs to distinguish them
-        if (actualHands >= 2 && landmarks.landmarks.size >= 42) {
+        if (actualHands >= 2 && landmarks.landmarks.size >= 42 && requiredHands >= 2) {
             val leftWristX = landmarks.landmarks[0].x   // Left hand wrist
             val rightWristX = landmarks.landmarks[21].x // Right hand wrist
             val leftWristY = landmarks.landmarks[0].y
