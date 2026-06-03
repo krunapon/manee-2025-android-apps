@@ -64,7 +64,7 @@ object SignLanguageConfig {
             meaning = "มีอาการเจ็บที่คอ",
             category = "โรงพยาบาล",
             mainVideoFile = "neck_ache_main.mp4",
-            testVideoFiles = listOf("neck_ache_test1.mp4", "neck_ache_test2.mp4"),
+            testVideoFiles = listOf("neck_ache_test1.mp4", "neck_ache_test2.mp4", "neck_ache_test3.mp4"),
             priority = 2,
             expectedAccuracy = 70,
             numHands = 2
@@ -87,7 +87,7 @@ object SignLanguageConfig {
             meaning = "มีอาการปวดหัว",
             category = "โรงพยาบาล",
             mainVideoFile = "head_ache_main.mp4",
-            testVideoFiles = listOf("head_ache_test1.mp4", "head_ache_test2.mp4"),
+            testVideoFiles = listOf("head_ache_test1.mp4"),
             priority = 3,
             expectedAccuracy = 65,
             numHands = 1

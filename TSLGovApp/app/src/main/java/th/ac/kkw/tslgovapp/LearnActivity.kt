@@ -33,14 +33,14 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "บัตรประชาชน",
             meaning = "บัตรประจำตัวประชาชน",
-            videoFileName = "id_card.mp4",
+            videoFileName = "id_card_main.mp4",
             category = "สถานีตำรวจ"
         ),
         // หมวดสถานีตำรวจ
         SignWord(
             word = "หาย",
             meaning = "สิ่งของหายไป",
-            videoFileName = "lost.mp4",
+            videoFileName = "lost_main.mp4",
             category = "สถานีตำรวจ"
         ),
         SignWord(
@@ -52,7 +52,7 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "เจ็บคอ",
             meaning = "เจ็บคอ",
-            videoFileName = "neck_ache.mp4",
+            videoFileName = "neck_ache_main.mp4",
             category = "โรงพยาบาล"
         ),
         SignWord(
@@ -70,13 +70,13 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         SignWord(
             word = "หนังสือเดินทาง",
             meaning = "หนังสือเดินทาง",
-            videoFileName = "passport.mp4",
+            videoFileName = "passport_main.mp4",
             category = "สนามบิน"
         ),
         SignWord(
             word = "เครื่องบิน",
             meaning = "เครื่องบิน",
-            videoFileName = "airplane.mp4",
+            videoFileName = "airplane_main.mp4",
             category = "สนามบิน"
         ),
         SignWord(

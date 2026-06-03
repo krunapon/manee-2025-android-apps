@@ -1009,7 +1009,7 @@ class SignLanguageAnalyzer(
      * Characteristics: Hand at throat level, fingers touching neck
      */
     private fun validateSoreThroatGesture(landmarks: HandLandmarkData, fingerStates: IntArray): Boolean {
-        if (landmarks.landmarks.size < 21) return true
+        if (landmarks.landmarks.size < 42) return false
 
         val hand1WristY = landmarks.landmarks[0].y
         val hand2WristY = landmarks.landmarks[21].y

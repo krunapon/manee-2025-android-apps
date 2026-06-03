@@ -141,7 +141,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             Log.d(TAG, "Starting to load sign language templates...")
 
             // หมวดโรงพยาบาล
-            videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(Uri.parse("android.resource://$packageName/${R.raw.neck_ache}")), 2)
+            videoProcessor.createTemplateFromVideos("เจ็บคอ", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.neck_ache_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.neck_ache_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.neck_ache_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.neck_ache_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.neck_ache_test4}")),
+                2)
             videoProcessor.createTemplateFromVideos("ปวดหัว", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_main}"),  // Commented out - may be different camera
                 Uri.parse("android.resource://$packageName/${R.raw.head_ache_test1}"),
@@ -163,12 +169,18 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(
-                Uri.parse("android.resource://$packageName/${R.raw.lost}"),
+                Uri.parse("android.resource://$packageName/${R.raw.lost_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.lost_test1}"),
             //    Uri.parse("android.resource://$packageName/${R.raw.lost_test2}"),
-                Uri.parse("android.resource://$packageName/${R.raw.lost_test3}")), 2)
+                Uri.parse("android.resource://$packageName/${R.raw.lost_test2}")), 2)
              //   Uri.parse("android.resource://$packageName/${R.raw.lost_test4}")
-            videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(Uri.parse("android.resource://$packageName/${R.raw.id_card}")), 2)
+            videoProcessor.createTemplateFromVideos("บัตรประชาชน", listOf(
+                Uri.parse("android.resource://$packageName/${R.raw.id_card_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.id_card_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.id_card_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.id_card_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.id_card_test4}")), 2)
+
             videoProcessor.createTemplateFromVideos("แจ้งความ", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.report_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.report_test1}"),
@@ -178,7 +190,12 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 ), 1)
 
             // หมวดสนามบิน/ขนส่ง
-            videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport}")), 2)
+            videoProcessor.createTemplateFromVideos("หนังสือเดินทาง", listOf(Uri.parse("android.resource://$packageName/${R.raw.passport_main}"),
+                Uri.parse("android.resource://$packageName/${R.raw.passport_test1}"),
+                Uri.parse("android.resource://$packageName/${R.raw.passport_test2}"),
+                Uri.parse("android.resource://$packageName/${R.raw.passport_test3}"),
+                Uri.parse("android.resource://$packageName/${R.raw.passport_test4}"),), 2)
+
             videoProcessor.createTemplateFromVideos("เครื่องบิน", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.airplane_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.airplane_test1}"),
@@ -186,6 +203,7 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Uri.parse("android.resource://$packageName/${R.raw.airplane_test3}"),
                 Uri.parse("android.resource://$packageName/${R.raw.airplane_test4}"),
             ), 1)
+
             videoProcessor.createTemplateFromVideos("ห้องน้ำ", listOf(
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.toilet_test1}"),
