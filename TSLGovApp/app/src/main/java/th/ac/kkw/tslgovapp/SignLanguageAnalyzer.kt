@@ -992,9 +992,9 @@ class SignLanguageAnalyzer(
         val hand2WristX = landmarks.landmarks[21].x
 
         // Help: hands must be in upper position (less than 0.75) of frame (not at sides)
-        val handsHighEnough = hand1WristY < 0.75f && hand2WristY < 0.75f
+        val handsHighEnough = hand1WristY < 0.85f && hand2WristY < 0.85f
         val horizontalDistance = abs(hand1WristX - hand2WristX)
-        val handsAreStacked = horizontalDistance < 0.3f
+        val handsAreStacked = horizontalDistance < 0.5f
         val result = handsHighEnough  && handsAreStacked
 
         Log.d(TAG, "🆘 ช่วย: result=$result, handsHighEnough=$handsHighEnough " +

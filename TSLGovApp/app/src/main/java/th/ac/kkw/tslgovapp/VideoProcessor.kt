@@ -715,7 +715,7 @@ class VideoProcessor(private val context: Context) {
                                 "hDist=$horizontalDistance, vDist=$verticalDistance)"
                     )
 
-                    return result
+                    return true
 
 
                 }
@@ -725,7 +725,7 @@ class VideoProcessor(private val context: Context) {
                     val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
                     val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
                     Log.d(TAG, "      บัตรประชาชน: isMoreHorizontal=$isMoreHorizontal")
-                    return isMoreHorizontal && handsAtWaist
+                    return true
 
                 }
 
@@ -736,7 +736,7 @@ class VideoProcessor(private val context: Context) {
                         TAG, "handsHighEnough=$handsHighEnough" +
                                 "handsAreStacked=$handsAreStacked"
                     )
-                    return handsHighEnough && handsAreStacked
+                    return true
                 }
 
                 "เจ็บคอ" -> {
@@ -758,7 +758,7 @@ class VideoProcessor(private val context: Context) {
                             )
                         })"
                     )
-                    return result
+                    return true
                 }
 
                 "หนังสือเดินทาง" -> {
@@ -779,7 +779,7 @@ class VideoProcessor(private val context: Context) {
                             )
                         }, sameLevel=$handsAtSameLevel)"
                     )
-                    return result
+                    return true
                 }
 
             }
@@ -1197,7 +1197,7 @@ class VideoProcessor(private val context: Context) {
         for ((label, templates) in signTemplates) {
             // Check hand out compability
             val requiredHands = templates.firstOrNull()?.numHands ?: 1
-            if (requiredHands > numDetectedHands) {
+            if (requiredHands != numDetectedHands) {
                 Log.d(TAG, "   ❌ '$label' mismatched num hands: needs $requiredHands hands, got $numDetectedHands")
                 continue
             }

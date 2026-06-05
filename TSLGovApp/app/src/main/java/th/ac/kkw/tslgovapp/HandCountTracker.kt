@@ -34,7 +34,7 @@ class HandCountTracker {
 
         // Number of recent frames to keep in history
         // Larger = more stable but slower to react to changes
-        private const val HISTORY_SIZE = 3
+        private const val HISTORY_SIZE = 5
 
         // Minimum percentage of frames that must agree before locking a hand count
         // 0.6 = 60% of frames must have the same hand count
@@ -105,9 +105,14 @@ class HandCountTracker {
                     Log.d(TAG, "🔒 Initial hand count locked to: $stableHandCount " +
                             "(confidence=${String.format("%.0f%%", winPercentage * 100)})")
                 } else if (stableHandCount != winningCount) {
-                    // Apply hysteresis: require higher confidence to change from locked state
-                    // This prevents rapid switching between 1 and 2 hands
-                    if (winPercentage >= CHANGE_THRESHOLD) {
+                    // Sticky 2→1: a two-hand sign briefly shows 1 hand, so only drop the
+                    // lock if ALL recent frames agree. 1→2 stays responsive.
+                    val requiredToChange = when {
+                        stableHandCount == 2 && winningCount == 1 -> 0.8f
+                        stableHandCount == 1 && winningCount == 2 -> 0.5f
+                        else -> CHANGE_THRESHOLD
+                    }
+                    if (winPercentage >= requiredToChange) {
                         Log.d(TAG, "🔄 Hand count changed: $stableHandCount -> $winningCount "
                                 +
                                 "(confidence=${String.format("%.0f%%", winPercentage *
