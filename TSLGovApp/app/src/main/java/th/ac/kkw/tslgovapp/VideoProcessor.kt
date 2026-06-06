@@ -736,7 +736,7 @@ class VideoProcessor(private val context: Context) {
                         TAG, "handsHighEnough=$handsHighEnough" +
                                 "handsAreStacked=$handsAreStacked"
                     )
-                    return true
+                    return horizontalDistance < 0.5f
                 }
 
                 "เจ็บคอ" -> {
