@@ -721,12 +721,12 @@ class VideoProcessor(private val context: Context) {
                 }
 
                 "บัตรประชาชน" -> {
-                    // ID Card: hands are horizontally apart (side by side)
-                    val isMoreHorizontal = horizontalDistance > verticalDistance * 1.8f
-                    val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
-                    Log.d(TAG, "      บัตรประชาชน: isMoreHorizontal=$isMoreHorizontal")
-                    return true
-
+                    // ID Card: hands wide apart, thumbs NOT spread (distinguishes from passport)
+                    val leftThumbX = landmarks.landmarks[4].x
+                    val rightThumbX = landmarks.landmarks[25].x
+                    val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
+                    Log.d(TAG, "      บัตรประชาชน: hDist=$horizontalDistance, thumbDist=$thumbHorizontalDistance")
+                    return horizontalDistance > 0.45f && thumbHorizontalDistance < 0.35f
                 }
 
                 "ช่วย" -> {
@@ -736,7 +736,7 @@ class VideoProcessor(private val context: Context) {
                         TAG, "handsHighEnough=$handsHighEnough" +
                                 "handsAreStacked=$handsAreStacked"
                     )
-                    return horizontalDistance < 0.5f
+                    return horizontalDistance < 0.35f
                 }
 
                 "เจ็บคอ" -> {
@@ -779,7 +779,7 @@ class VideoProcessor(private val context: Context) {
                             )
                         }, sameLevel=$handsAtSameLevel)"
                     )
-                    return true
+                    return thumbsWideApart
                 }
 
             }
