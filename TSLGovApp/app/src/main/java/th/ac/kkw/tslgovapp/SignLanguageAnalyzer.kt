@@ -1015,11 +1015,14 @@ class SignLanguageAnalyzer(
         val hand2WristY = landmarks.landmarks[21].y
         val verticalDistance = abs(hand1WristY - hand2WristY)
 
-        // Sore throat : hands must be very high up (near neck/face), not chest level
-        val handsVeryHighUp = hand1WristY < 0.3f && hand2WristY < 0.3f
+        // เจ็บคอ step 2: both hands at the same level (chest), index fingers
+        // pointing at each other so their tips meet in the middle. Matches the
+        // VideoProcessor gate (handsWide + indexTipsTogether) — NOT hands-high.
+        val indexTipDistance = abs(landmarks.landmarks[8].x - landmarks.landmarks[29].x)
+        val indexTipsTogether = indexTipDistance < 0.20f
         val handsSameLevel = verticalDistance < 0.15f
-        val result = handsVeryHighUp && handsSameLevel
-        Log.v(TAG, "   result=$result, handsVeryHighUp=$handsVeryHighUp, handsSameLevel=$handsSameLevel")
+        val result = indexTipsTogether && handsSameLevel
+        Log.v(TAG, "   result=$result, indexTipsTogether=$indexTipsTogether, indexTipDist=${String.format("%.3f", indexTipDistance)}, handsSameLevel=$handsSameLevel")
         return result
     }
 

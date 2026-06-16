@@ -715,50 +715,48 @@ class VideoProcessor(private val context: Context) {
                                 "hDist=$horizontalDistance, vDist=$verticalDistance)"
                     )
 
-                    return true
+                    // หาย (lost) is a motion gesture the static matcher can't do; was a magnet
+                    // (return true matched ANY two-hand pose and stole เจ็บคอ). Disabled.
+                    return false
 
 
                 }
 
                 "บัตรประชาชน" -> {
-                    // ID Card: hands wide apart, thumbs NOT spread (distinguishes from passport)
+                    // ID Card: hands wide apart, thumbs NOT spread (distinguishes from passport).
+                    // Also exclude เจ็บคอ step-2 (index fingertips meeting in the middle).
                     val leftThumbX = landmarks.landmarks[4].x
                     val rightThumbX = landmarks.landmarks[25].x
                     val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
-                    Log.d(TAG, "      บัตรประชาชน: hDist=$horizontalDistance, thumbDist=$thumbHorizontalDistance")
-                    return horizontalDistance > 0.45f && thumbHorizontalDistance < 0.35f
+                    val indexTipDistance = kotlin.math.abs(landmarks.landmarks[8].x - landmarks.landmarks[29].x)
+                    val indexTipsTogether = indexTipDistance < 0.20f
+                    Log.d(TAG, "      บัตรประชาชน: hDist=$horizontalDistance, thumbDist=$thumbHorizontalDistance, indexTipDist=${String.format("%.3f", indexTipDistance)}")
+                    return horizontalDistance > 0.45f && thumbHorizontalDistance < 0.35f && !indexTipsTogether
                 }
 
                 "ช่วย" -> {
-                    val handsHighEnough = leftWristY < 0.7f && rightWristY < 0.7f
-                    val handsAreStacked = horizontalDistance < 0.3f
-                    Log.d(
-                        TAG, "handsHighEnough=$handsHighEnough" +
-                                "handsAreStacked=$handsAreStacked"
-                    )
+                    // Help: hands CLOSE together (stacked), measured wrist-to-wrist.
+                    Log.d(TAG, "      ช่วย: hDist=${String.format("%.3f", horizontalDistance)}")
                     return horizontalDistance < 0.35f
                 }
 
                 "เจ็บคอ" -> {
-                    // Neck ache: hands near neck (high position) and at same level (small vertical distance)
-                    val handsHighUp = leftWristY < 0.4f && rightWristY < 0.4f
-                    val handsSameLevel = verticalDistance < 0.15f
-                    val result = handsHighUp && handsSameLevel
+                    // Neck ache — step 2: hands WIDE at the wrists, but the two INDEX FINGERTIPS
+                    // meet in the middle (fingers point at each other). Separate from บัตรประชาชน
+                    // (also wide) by index-tip distance: tips together = เจ็บคอ, tips apart = id card.
+                    val leftIndexTipX = landmarks.landmarks[8].x
+                    val rightIndexTipX = landmarks.landmarks[29].x
+                    val indexTipDistance = kotlin.math.abs(leftIndexTipX - rightIndexTipX)
+                    val handsWide = horizontalDistance > 0.40f
+                    val indexTipsTogether = indexTipDistance < 0.20f
+                    val result = handsWide && indexTipsTogether
                     Log.d(
                         TAG,
-                        "      เจ็บคอ: result=$result (highUp=$handsHighUp,  sameLevel=$handsSameLevel, leftY=${
-                            String.format(
-                                "%.3f",
-                                leftWristY
-                            )
-                        }, rightY=${
-                            String.format(
-                                "%.3f",
-                                rightWristY
-                            )
-                        })"
+                        "      เจ็บคอ: result=$result (handsWide=$handsWide, indexTipsTogether=$indexTipsTogether, hDist=${
+                            String.format("%.3f", horizontalDistance)
+                        }, indexTipDist=${String.format("%.3f", indexTipDistance)})"
                     )
-                    return true
+                    return result
                 }
 
                 "หนังสือเดินทาง" -> {
