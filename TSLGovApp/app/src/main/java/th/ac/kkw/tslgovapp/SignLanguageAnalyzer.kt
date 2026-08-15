@@ -86,6 +86,7 @@ class SignLanguageAnalyzer(
     // Consecutive detection tracking (prevents false positives)
     private var lastDetectedWord = ""
     private var consecutiveCount = 0
+    private var lastDetectedHandCount = 0
 
     // Gesture timing tracking
     private var gestureStartTime = 0L
@@ -566,14 +567,14 @@ class SignLanguageAnalyzer(
 
             // Step 3: Additional validation using angle features
             if (validateWithAngleFeatures(word, handLandmarkData, angleFeatures, fingerStates)) {
-                handleConsecutiveDetection(word)
+                handleConsecutiveDetection(word, effectiveHandCount)
             } else {
                 Log.d(TAG, "❌ Failed angle feature validation for '$word'")
-                resetConsecutiveCount()
+                resetConsecutiveCount(effectiveHandCount)
             }
         } else {
             // No match from VideoProcessor
-            resetConsecutiveCount()
+            resetConsecutiveCount(effectiveHandCount)
         }
     }
 
@@ -1110,13 +1111,21 @@ class SignLanguageAnalyzer(
      * Handle consecutive detection to prevent false positives
      * Requires detecting the same word multiple times in a row
      */
-    private fun handleConsecutiveDetection(word: String) {
+    private fun handleConsecutiveDetection(word: String, handCount: Int) {
         synchronized(detectionLock) {
             if (word == lastDetectedWord) {
                 consecutiveCount++
+            } else if (lastDetectedHandCount == 2 && handCount == 1) {
+                // A 2-hand streak is building; this frame only has 1 hand locked in.
+                // Treat it as tracking noise (see HandCountTracker) rather than a
+                // competing gesture — don't touch the streak either way.
+                Log.v(TAG, "🔇 Ignoring 1-hand result '$word' during 2-hand streak " +
+                        "('$lastDetectedWord'=$consecutiveCount)")
+                return
             } else {
                 consecutiveCount = 1
                 lastDetectedWord = word
+                lastDetectedHandCount = handCount
             }
 
             val requiredDetections = if (captureMode == MODE_SINGLE_FRAME) 1 else REQUIRED_CONSECUTIVE_DETECTIONS
@@ -1144,6 +1153,7 @@ class SignLanguageAnalyzer(
                 }
                 consecutiveCount = 0
                 lastDetectedWord = ""
+                lastDetectedHandCount = 0
             }
 
         }
@@ -1152,13 +1162,21 @@ class SignLanguageAnalyzer(
     /**
      * Reset consecutive detection counters
      */
-    private fun resetConsecutiveCount() {
+    private fun resetConsecutiveCount(handCount: Int = 0) {
         synchronized(detectionLock) {
+            if (lastDetectedHandCount == 2 && handCount == 1) {
+                // Same noise-ignoring rule as handleConsecutiveDetection: a 1-hand
+                // no-match/failed-validation frame shouldn't kill a 2-hand streak.
+                Log.v(TAG, "🔇 Ignoring 1-hand reset during 2-hand streak " +
+                        "('$lastDetectedWord'=$consecutiveCount)")
+                return
+            }
             if (consecutiveCount > 0) {
                 Log.v(TAG, "Resetting consecutive count (was: $consecutiveCount)")
             }
             consecutiveCount = 0
             lastDetectedWord = ""
+            lastDetectedHandCount = 0
             // Note: Don't reset lastAnnouncedWord here to prevent re-announcing same word
         }
     }

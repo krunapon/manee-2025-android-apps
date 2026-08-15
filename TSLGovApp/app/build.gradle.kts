@@ -79,10 +79,14 @@ dependencies {
     implementation(libs.androidx.material3)
 
     // Camera dependencies - ONLY THESE ARE NEEDED
-    implementation("androidx.camera:camera-camera2:1.3.1")
-    implementation("androidx.camera:camera-lifecycle:1.3.1")
-    implementation("androidx.camera:camera-view:1.3.1")
-    implementation("androidx.camera:camera-core:1.3.1")
+    // implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    // implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    // implementation("androidx.camera:camera-view:1.3.1")
+    implementation("androidx.camera:camera-view:1.4.2")
+    // implementation("androidx.camera:camera-core:1.3.1")
+    implementation("androidx.camera:camera-core:1.4.2")
     implementation("androidx.camera:camera-video:1.2.3")
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
@@ -93,7 +97,8 @@ dependencies {
 
 
     // เพิ่มไลบรารี MediaPipe Task Vision Hand Landmarker ที่ถูกต้อง
-    implementation("com.google.mediapipe:tasks-vision:0.10.14")
+    // implementation("com.google.mediapipe:tasks-vision:0.10.14")
+    implementation("com.google.mediapipe:tasks-vision:0.10.29")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
     implementation("com.google.guava:guava:31.1-android")
 

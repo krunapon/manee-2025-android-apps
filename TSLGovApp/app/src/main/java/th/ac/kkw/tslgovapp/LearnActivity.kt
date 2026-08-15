@@ -31,6 +31,12 @@ class LearnActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // ข้อมูลคำศัพท์ภาษามือตามที่ระบุในเอกสาร
     private val signLanguageWords = listOf(
         SignWord(
+            word = "ปวดท้อง",
+            meaning = "ปวดท้อง",
+            videoFileName = "stomachache_main.mp4",
+            category = "โรงพยาบาล"
+        ),
+        SignWord(
             word = "บัตรประชาชน",
             meaning = "บัตรประจำตัวประชาชน",
             videoFileName = "id_card_main.mp4",

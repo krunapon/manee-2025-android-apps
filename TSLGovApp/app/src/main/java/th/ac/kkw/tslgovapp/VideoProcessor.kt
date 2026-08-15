@@ -25,6 +25,11 @@ class VideoProcessor(private val context: Context) {
     companion object {
         private const val TAG = "VideoProcessor"
         private const val MODEL_FILE = "hand_landmarker.task" // ✅ Correct path
+        private const val DTW_LIVE_BUFFER_MAX = 20
+        private const val WRIST_HISTORY_MAX = 8
+        // Sanity cap on DTW distance — rejects input that's far from both id-card and
+        // passport templates. Above the largest within-class distance seen in calibration.
+        private const val DTW_ABS_CAP = 0.35f
     }
 
     private var handLandmarker: HandLandmarker? = null
@@ -39,6 +44,20 @@ class VideoProcessor(private val context: Context) {
 
     private val signTemplates = mutableMapOf<String,
             MutableList<SignTemplate>>()
+
+    // DTW sequence templates for words whose gate needs the shape of the motion over
+    // time, not a single-frame snapshot (บัตรประชาชน / หนังสือเดินทาง). Kept as a separate
+    // map (not a SignTemplate field) so it doesn't change SignTemplate's serialized shape
+    // and break the existing template disk cache.
+    private val sequenceTemplates = mutableMapOf<String, MutableList<List<FloatArray>>>()
+
+    // Rolling window of recent two-hand feature vectors, updated once per processed frame
+    // in recognizeSign(), consumed by the DTW gates in checkGestureCharacteristics().
+    private val liveFeatureBuffer = ArrayDeque<FloatArray>()
+    // Rolling window of recent one-hand wrist positions (x, y, handSize), updated once per
+// frame in recognizeSign() when exactly 1 hand is visible. Used to reject "moving hand"
+// candidates like ห้องน้ำ from static-hold words like ปวดท้อง.
+    private val wristHistoryBuffer = ArrayDeque<Triple<Float, Float, Float>>()
 
     init {
         Logger.saveLogcatFor(context, VideoProcessor::class)
@@ -84,6 +103,16 @@ class VideoProcessor(private val context: Context) {
                 }
             }
 
+            // DTW sequence templates (id-card / passport) are separate from signTemplates
+            // and must be cached too, or a cache hit on next launch would skip
+            // createTemplateFromVideos entirely and leave sequenceTemplates empty forever.
+            val sequenceTemplatesFile = File(context.cacheDir, "cached_sequence_templates.dat")
+            FileOutputStream(sequenceTemplatesFile).use { fos ->
+                ObjectOutputStream(fos).use { oos ->
+                    oos.writeObject(sequenceTemplates)
+                }
+            }
+
             Log.d(TAG, "Templates cached successfully (${signTemplates.size} words)")
         } catch (e: Exception) {
             Log.e("VideoProcessor", "Failed to cache templates: ${e.message}")
@@ -103,6 +132,25 @@ class VideoProcessor(private val context: Context) {
                     val loaded = ois.readObject() as MutableMap<String, MutableList<SignTemplate>>
                     signTemplates.clear()
                     signTemplates.putAll(loaded)
+                }
+            }
+
+            // A cache written before DTW matching existed won't have this file. Treat
+            // that as a full cache miss (return false) so the caller falls back to
+            // loadTemplatesFromVideos(), which rebuilds sequenceTemplates and re-saves
+            // both files — self-healing old installs instead of permanently breaking
+            // the id-card/passport gates.
+            val sequenceTemplatesFile = File(context.cacheDir, "cached_sequence_templates.dat")
+            if (!sequenceTemplatesFile.exists()) {
+                Log.d(TAG, "No DTW sequence template cache found — forcing full reload")
+                return false
+            }
+            FileInputStream(sequenceTemplatesFile).use { fis ->
+                ObjectInputStream(fis).use { ois ->
+                    @Suppress("UNCHECKED_CAST")
+                    val loaded = ois.readObject() as MutableMap<String, MutableList<List<FloatArray>>>
+                    sequenceTemplates.clear()
+                    sequenceTemplates.putAll(loaded)
                 }
             }
 
@@ -591,6 +639,13 @@ class VideoProcessor(private val context: Context) {
                             "✅ Added template for '$label' from $videoUri (${signTemplates[label]!!.size} total)"
                         )
                         Log.i(TAG, "🎉 '$label': Template created successfully")
+
+                        // Also keep the raw per-frame sequence for words whose gate uses DTW.
+                        if (label == "บัตรประชาชน" || label == "หนังสือเดินทาง") {
+                            val seq = framesLandmarks.map { frame -> twoHandFeatureVector(HandLandmarkData(frame)) }
+                            sequenceTemplates.getOrPut(label) { mutableListOf() }.add(seq)
+                            Log.i(TAG, "🧬 '$label': added DTW sequence template (${seq.size} frames)")
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -598,6 +653,64 @@ class VideoProcessor(private val context: Context) {
             }
         }
         Log.i(TAG, "📦 '$label' now has ${signTemplates[label]?.size ?: 0} templates")
+    }
+
+    // Compact, translation/scale-relative feature vector for two-hand DTW matching.
+    // Mirrors the distances the old static gates used, kept as a sequence instead of
+    // collapsed into one frame.
+    private fun twoHandFeatureVector(landmarks: HandLandmarkData): FloatArray {
+        val l = landmarks.landmarks
+        return floatArrayOf(
+            abs(l[4].x - l[25].x),   // thumb spread
+            abs(l[8].x - l[29].x),   // index-tip spread
+            abs(l[0].x - l[21].x),   // wrist horizontal distance
+            abs(l[0].y - l[21].y)    // wrist vertical distance
+        )
+    }
+
+    // Classic DTW over sequences of small feature vectors, normalized by path length so
+    // a short template sequence and a longer live window compare fairly.
+    private fun dtwDistance(seqA: List<FloatArray>, seqB: List<FloatArray>): Float {
+        if (seqA.isEmpty() || seqB.isEmpty()) return Float.MAX_VALUE
+        val n = seqA.size
+        val m = seqB.size
+        val cost = Array(n + 1) { FloatArray(m + 1) { Float.MAX_VALUE / 2 } }
+        cost[0][0] = 0f
+        for (i in 1..n) {
+            for (j in 1..m) {
+                var d = 0f
+                for (k in seqA[i - 1].indices) {
+                    val diff = seqA[i - 1][k] - seqB[j - 1][k]
+                    d += diff * diff
+                }
+                cost[i][j] = sqrt(d) + minOf(cost[i - 1][j], cost[i][j - 1], cost[i - 1][j - 1])
+            }
+        }
+        return cost[n][m] / (n + m)
+    }
+
+    // Minimum DTW distance from the live buffer to any stored sequence template for `word`.
+    private fun minDtwDistanceTo(word: String): Float {
+        val templates = sequenceTemplates[word].orEmpty()
+        if (templates.isEmpty()) return Float.MAX_VALUE
+        val liveSeq = liveFeatureBuffer.toList()
+        return templates.minOf { dtwDistance(liveSeq, it) }
+    }
+    // Average per-frame wrist displacement over the recent window, normalized by hand size
+// so it's stable across camera distance/hand size. Calibrated on real recordings:
+// stomachache's per-video mean is 0.014-0.027; toilet's is 0.040-0.067 — roughly 2-3x higher.
+    private fun recentWristMotion(): Float {
+        if (wristHistoryBuffer.size < 2) return 0f
+        val points = wristHistoryBuffer.toList()
+        var total = 0f
+        for (i in 1 until points.size) {
+            val (x0, y0, hs0) = points[i - 1]
+            val (x1, y1, hs1) = points[i]
+            val d = sqrt((x1 - x0).pow(2) + (y1 - y0).pow(2))
+            val hs = (hs0 + hs1) / 2f
+            total += if (hs > 1e-6f) d / hs else 0f
+        }
+        return total / (points.size - 1)
     }
 
     private fun checkGestureCharacteristics(
@@ -723,15 +836,22 @@ class VideoProcessor(private val context: Context) {
                 }
 
                 "บัตรประชาชน" -> {
-                    // ID Card: hands wide apart, thumbs NOT spread (distinguishes from passport).
-                    // Also exclude เจ็บคอ step-2 (index fingertips meeting in the middle).
-                    val leftThumbX = landmarks.landmarks[4].x
-                    val rightThumbX = landmarks.landmarks[25].x
-                    val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
-                    val indexTipDistance = kotlin.math.abs(landmarks.landmarks[8].x - landmarks.landmarks[29].x)
-                    val indexTipsTogether = indexTipDistance < 0.20f
-                    Log.d(TAG, "      บัตรประชาชน: hDist=$horizontalDistance, thumbDist=$thumbHorizontalDistance, indexTipDist=${String.format("%.3f", indexTipDistance)}")
-                    return horizontalDistance > 0.45f && thumbHorizontalDistance < 0.35f && !indexTipsTogether
+                    // ID Card vs passport: compare DTW distance to each word's own sequence
+                    // templates and accept whichever class the live motion is closer to,
+                    // rather than an independent absolute threshold per word (calibration
+                    // showed passport's own within-class spread overlaps where an
+                    // independent id-card threshold would need to sit).
+                    // Current-frame spatial floor: across all 5 id-card calibration videos,
+                    // wrist horizontal distance never drops below 0.316 — so 0.25 rejects a
+                    // close-hands frame (e.g. mid-transition into "ช่วย"'s pose) with margin,
+                    // without ever clipping a genuine id-card frame. NOT applied to passport:
+                    // its calibration videos are frequently close-hands (min as low as 0.047),
+                    // so a wide-hands floor there would reject most real passport frames.
+                    if (horizontalDistance <= 0.25f) return false
+                    val dCard = minDtwDistanceTo("บัตรประชาชน")
+                    val dPassport = minDtwDistanceTo("หนังสือเดินทาง")
+                    Log.d(TAG, "      บัตรประชาชน: dCard=$dCard, dPassport=$dPassport")
+                    return dCard < dPassport && dCard < DTW_ABS_CAP
                 }
 
                 "ช่วย" -> {
@@ -760,24 +880,11 @@ class VideoProcessor(private val context: Context) {
                 }
 
                 "หนังสือเดินทาง" -> {
-                    // Passport: thumbs are more apart horizontally (like open book)
-                    val leftThumbX = landmarks.landmarks[4].x   // Left hand thumb tip
-                    val rightThumbX = landmarks.landmarks[25].x // Right hand thumb tip (21 + 4)
-                    val thumbHorizontalDistance = kotlin.math.abs(leftThumbX - rightThumbX)
-                    val handsAtSameLevel = verticalDistance < 0.25f
-                    val thumbsWideApart = thumbHorizontalDistance > 0.35f
-                    val handsAtWaist = leftWristY < 0.5 && rightWristY < 0.5
-                    val result = thumbsWideApart && handsAtSameLevel && handsAtWaist
-                    Log.d(
-                        TAG,
-                        "      หนังสือเดินทาง: result=$result (thumbsApart=$thumbsWideApart, thumbDist=${
-                            String.format(
-                                "%.3f",
-                                thumbHorizontalDistance
-                            )
-                        }, sameLevel=$handsAtSameLevel)"
-                    )
-                    return thumbsWideApart
+                    // Passport vs id-card: same comparative DTW check, mirrored.
+                    val dPassport = minDtwDistanceTo("หนังสือเดินทาง")
+                    val dCard = minDtwDistanceTo("บัตรประชาชน")
+                    Log.d(TAG, "      หนังสือเดินทาง: dPassport=$dPassport, dCard=$dCard")
+                    return dPassport < dCard && dPassport < DTW_ABS_CAP
                 }
 
             }
@@ -948,11 +1055,23 @@ class VideoProcessor(private val context: Context) {
                     val wrist = landmarks.landmarks[0]
                     val wristY = wrist.y
 
+                    // Reject curled-hand poses. ปวดท้อง and ห้องน้ำ occupy the same low-Y zone, and a
+                    // curled hand pressed to the stomach was passing toilet's ratio-based check too.
+                    // Logcat evidence 2026-08-12: live ปวดท้อง attempt had nonThumbExtended=0 yet still
+                    // passed toilet's checks (middleRatio=0.491, ringRatio=0.486 — both inside 0.25-0.80)
+                    // and won on template distance.
+                    val nonThumbExtended = index + middle + ring + pinky
+                    if (nonThumbExtended < 2) {
+                        Log.d(TAG, "   ❌ ห้องน้ำ: fingers curled (nonThumbExtended=$nonThumbExtended), looks like ปวดท้อง")
+                        return false
+                    }
                     // Check 1: Hand must be low enough (waist level, not forehead level)
-                    // The real toilet gesture should be at waist level (Y ≈ 0.40–0.90).
-                    // Headache: wrist Y ~0.2-0.3 (high up)
-                    // Toilet: wrist Y ~0.4+ (lower down)
-                    val handLowEnough = wristY > 0.40f && wristY < 0.90f
+                    // Calibrated against 81 sampled frames across all 5 toilet videos:
+                    // real wristY never goes below 0.630 or above 0.933. Margin kept on
+                    // both sides (0.60–0.95) so no real calibration frame is rejected,
+                    // while excluding higher-in-frame poses (e.g. a hand still transitioning
+                    // into a different two-hand gesture) that the old 0.40 floor let through.
+                    val handLowEnough = wristY > 0.60f && wristY < 0.95f
 
                     if (!handLowEnough) {
                         Log.v(
@@ -984,7 +1103,11 @@ class VideoProcessor(private val context: Context) {
 
                     // For toilet: fingers should be extended (> 35% of hand size)
                     // For airplane: middle/ring are curled (< 25% of hand size)
-                    val fingersExtended = middleExtensionRatio > 0.25f && ringExtensionRatio > 0.25f
+                    // Upper bound (0.80) added after the lower-only check let through a
+                    // transitional frame with middleRatio=2.098 — calibration data across
+                    // all 5 toilet videos never exceeds 0.672, so 0.80 keeps full margin.
+                    val fingersExtended = middleExtensionRatio > 0.25f && middleExtensionRatio < 0.80f &&
+                            ringExtensionRatio > 0.25f && ringExtensionRatio < 0.80f
                     if (!fingersExtended) {
                         Log.v(
                             TAG,
@@ -1070,6 +1193,7 @@ class VideoProcessor(private val context: Context) {
                     if (nonThumbExtended < 2) {
                         Log.d(TAG, "   ไม่สบาย: only $nonThumbExtended/4 fingers extended (need ≥2)")
                         return false
+
                     }
 
                         // 3) ต้องไม่ใช่ "ปวดหัว" — เช็ค fingertip cluster ว่ากระจาย ไม่กระจุก
@@ -1106,6 +1230,38 @@ class VideoProcessor(private val context: Context) {
                         return false
                     }
 
+                    return true
+                }
+                "ปวดท้อง" -> {
+                    // Stomachache: one hand held low against the stomach, fingers curled
+                    // (not spread open like ห้องน้ำ/ไม่สบาย).
+                    // Calibrated against 133 sampled frames across all 3 stomachache
+                    // videos: real wristY never goes below 0.783 or above 0.998 — much
+                    // lower in frame than ปวดหัว/ไม่สบาย (forehead level, wristY<0.55-0.70).
+                    val handLowEnough = wristY > 0.75f
+                    if (!handLowEnough) {
+                        Log.d(TAG, "   ❌ ปวดท้อง: hand too high, not at stomach level (wristY=$wristY)")
+                        return false
+                    }
+
+                    val nonThumbExtended = index + middle + ring + pinky
+                    if (nonThumbExtended > 1) {
+                        Log.d(TAG, "   ❌ ปวดท้อง: fingers too extended for stomach-press pose (nonThumbExtended=$nonThumbExtended)")
+                        return false
+                    }
+
+                    // ห้องน้ำ discriminator: ปวดท้อง is a static hand pressed against the
+                    // stomach; ห้องน้ำ's hand keeps moving. Calibrated: stomachache's mean
+                    // motion is 0.014-0.027 across 3 videos, toilet's is 0.040-0.067 across
+                    // 4 videos — threshold sits in the gap.
+                    val motion = recentWristMotion()
+                    val handStillEnough = motion < 0.030f
+                    if (!handStillEnough) {
+                        Log.d(TAG, "   ❌ ปวดท้อง: hand still moving, looks like ห้องน้ำ (motion=$motion)")
+                        return false
+                    }
+
+                    Log.d(TAG, "   ✅ ปวดท้อง: valid stomachache gesture (wristY=$wristY, nonThumbExtended=$nonThumbExtended, motion=$motion)")
                     return true
                 }
             }
@@ -1186,6 +1342,21 @@ class VideoProcessor(private val context: Context) {
         Log.d(TAG, "========================================")
         Log.d(TAG, "🔍 Detected hands: $numDetectedHands")
 
+        // Feed the rolling motion/DTW windows once per frame, regardless of which word is
+        // being checked below: the one-hand wrist-history buffer (for motion gates like
+        // ปวดท้อง's ห้องน้ำ discriminator) when exactly one hand is visible, and the two-hand
+        // DTW window when both hands are visible.
+        if (actualHands == 1 && currentGestureLandmarks.landmarks.size >= 21) {
+            val wrist = currentGestureLandmarks.landmarks[0]
+            val middleTip = currentGestureLandmarks.landmarks[12]
+            val handSize = sqrt((middleTip.x - wrist.x).pow(2) + (middleTip.y - wrist.y).pow(2))
+            wristHistoryBuffer.addLast(Triple(wrist.x, wrist.y, handSize))
+            while (wristHistoryBuffer.size > WRIST_HISTORY_MAX) wristHistoryBuffer.removeFirst()
+        }
+        if (actualHands >= 2) {
+            liveFeatureBuffer.addLast(twoHandFeatureVector(currentGestureLandmarks))
+            while (liveFeatureBuffer.size > DTW_LIVE_BUFFER_MAX) liveFeatureBuffer.removeFirst()
+        }
 
         var bestMatchLabel: String? = null
         var minDistance = Float.MAX_VALUE

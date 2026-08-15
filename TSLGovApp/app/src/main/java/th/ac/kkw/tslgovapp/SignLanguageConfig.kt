@@ -137,7 +137,21 @@ object SignLanguageConfig {
             priority = 1,
             expectedAccuracy = 80,
             numHands = 1
+        ),
+
+        SignWord(
+            word = "ปวดท้อง",
+            meaning = "ปวดท้อง",
+            category = "โรงพยาบาล",
+            mainVideoFile = "stomachache_main.mp4",
+            testVideoFiles = listOf<String>("stomachache_test1.mp4", "stomachache_test2.mp4"),
+
+            priority = 1,
+            expectedAccuracy = 80,
+            numHands = 1
         )
+
+
     )
 
     // ฟังก์ชันช่วยเหลือเดิม

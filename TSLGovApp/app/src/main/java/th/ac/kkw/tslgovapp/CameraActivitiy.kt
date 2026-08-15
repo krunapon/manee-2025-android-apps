@@ -165,7 +165,13 @@ class CameraActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             videoProcessor.createTemplateFromVideos("ไม่สบาย",
                 listOf(Uri.parse("android.resource://$packageName/${R.raw.sick_main}"),
                 Uri.parse("android.resource://$packageName/${R.raw.sick_test1}"),
-                Uri.parse("android.resource://$packageName/${R.raw.sick_test2}")), 1)
+                Uri.parse("android.resource://$packageName/${R.raw.sick_test2}")),
+                1)
+            videoProcessor.createTemplateFromVideos("ปวดท้อง",
+                listOf(Uri.parse("android.resource://$packageName/${R.raw.stomachache_main}"),
+                    Uri.parse("android.resource://$packageName/${R.raw.stomachache_test1}"),
+                    Uri.parse("android.resource://$packageName/${R.raw.stomachache_test2}")),
+                1)
 
             // หมวดสถานีตำรวจ
             videoProcessor.createTemplateFromVideos("หาย", listOf(
