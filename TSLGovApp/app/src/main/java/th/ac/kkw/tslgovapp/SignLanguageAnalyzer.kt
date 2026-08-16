@@ -296,6 +296,7 @@ class SignLanguageAnalyzer(
         detectionStartTime = System.currentTimeMillis()
         recentLandmarks.clear()
         handCountTracker.reset()
+        videoProcessor.resetLiveBuffers()
 
         isGestureInProgress = false
         gestureStartTime = 0L

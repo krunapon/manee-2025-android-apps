@@ -59,6 +59,10 @@ class VideoProcessor(private val context: Context) {
 // candidates like ห้องน้ำ from static-hold words like ปวดท้อง.
     private val wristHistoryBuffer = ArrayDeque<Triple<Float, Float, Float>>()
 
+    fun resetLiveBuffers() {
+        liveFeatureBuffer.clear()
+        wristHisotryBuffer.clear()
+    }
     init {
         Logger.saveLogcatFor(context, VideoProcessor::class)
         setupMediaPipe()
@@ -641,7 +645,7 @@ class VideoProcessor(private val context: Context) {
                         Log.i(TAG, "🎉 '$label': Template created successfully")
 
                         // Also keep the raw per-frame sequence for words whose gate uses DTW.
-                        if (label == "บัตรประชาชน" || label == "หนังสือเดินทาง") {
+                        if (label == "บัตรประชาชน" || label == "หนังสือเดินทาง" || label == "ช่วย") {
                             val seq = framesLandmarks.map { frame -> twoHandFeatureVector(HandLandmarkData(frame)) }
                             sequenceTemplates.getOrPut(label) { mutableListOf() }.add(seq)
                             Log.i(TAG, "🧬 '$label': added DTW sequence template (${seq.size} frames)")
@@ -847,17 +851,22 @@ class VideoProcessor(private val context: Context) {
                     // without ever clipping a genuine id-card frame. NOT applied to passport:
                     // its calibration videos are frequently close-hands (min as low as 0.047),
                     // so a wide-hands floor there would reject most real passport frames.
-                    if (horizontalDistance <= 0.25f) return false
+                    val indexTipDistance = abs(landmarks.landmarks[8].x - landmarks.landmarks[29].x)
+                    if (horizontalDistance <= 0.25f || indexTipDistance < 0.20f) return false
                     val dCard = minDtwDistanceTo("บัตรประชาชน")
                     val dPassport = minDtwDistanceTo("หนังสือเดินทาง")
+                    val dHelp = minDtwDistanceTo("ช่วย")
                     Log.d(TAG, "      บัตรประชาชน: dCard=$dCard, dPassport=$dPassport")
-                    return dCard < dPassport && dCard < DTW_ABS_CAP
+                    return dCard < dPassport && dCard < dHelp && dCard < DTW_ABS_CAP
                 }
 
                 "ช่วย" -> {
-                    // Help: hands CLOSE together (stacked), measured wrist-to-wrist.
-                    Log.d(TAG, "      ช่วย: hDist=${String.format("%.3f", horizontalDistance)}")
-                    return horizontalDistance < 0.35f
+                    if (horizontalDistance >= 0.35f) return false // cheap prefilter, keep as a fast reject
+                    val dHelp = minDtwDistanceTo("ช่วย")
+                    val dCard = minDtwDistanceTo("บัตรประชาชน")
+                    val dPassport = minDtwDistanceTo("หนังสือเดินทาง")
+                    Log.d(TAG, "ช่วย: dHelp=$dHelp, dCard=$dCard, dPassport=$dPassport")
+                    return dHelp < dCard && dHelp < dPassport && dHelp < DTW_ABS_CAP
                 }
 
                 "เจ็บคอ" -> {
@@ -883,8 +892,9 @@ class VideoProcessor(private val context: Context) {
                     // Passport vs id-card: same comparative DTW check, mirrored.
                     val dPassport = minDtwDistanceTo("หนังสือเดินทาง")
                     val dCard = minDtwDistanceTo("บัตรประชาชน")
+                    val dHelp = minDtwDistanceTo("ช่วย")
                     Log.d(TAG, "      หนังสือเดินทาง: dPassport=$dPassport, dCard=$dCard")
-                    return dPassport < dCard && dPassport < DTW_ABS_CAP
+                    return dPassport < dCard && dPassport < dHelp && dPassport < DTW_ABS_CAP
                 }
 
             }
